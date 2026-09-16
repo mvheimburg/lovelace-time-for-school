@@ -1,0 +1,7 @@
+{
+  "name": "Time for School Card",
+  "content_in_root": false,
+  "filename": "lovelace-time-for-school.js",
+  "render_readme": true,
+  "homeassistant": "2024.8.0"
+}
