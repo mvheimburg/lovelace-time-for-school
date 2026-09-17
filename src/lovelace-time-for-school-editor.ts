@@ -9,9 +9,22 @@ interface TimeForSchoolCardConfig {
   type: string;
   entity: string;
   name?: string;
+  appearance?: "default" | "bubble";
 }
 
 const SCHEMA = [
+  {
+    name: "appearance",
+    selector: {
+      select: {
+        mode: "dropdown",
+        options: [
+          { value: "default", label: "Default" },
+          { value: "bubble", label: "Bubble" }
+        ]
+      }
+    }
+  },
   {
     name: "entity",
     required: true,
@@ -21,6 +34,7 @@ const SCHEMA = [
 ];
 
 const LABELS: Record<string, string> = {
+  appearance: "Appearance",
   entity: "Time for School entity",
   name: "Name (optional)"
 };
@@ -31,7 +45,7 @@ export class TimeForSchoolCardEditor extends LitElement {
   @state() private _config!: TimeForSchoolCardConfig;
 
   public setConfig(config: TimeForSchoolCardConfig): void {
-    this._config = { ...config };
+    this._config = { appearance: "default", ...config };
   }
 
   private _valueChanged(ev: CustomEvent): void {

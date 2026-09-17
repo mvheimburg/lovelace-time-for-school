@@ -1,6 +1,6 @@
 {
   "name": "lovelace-time-for-school",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Lovelace card for the Time for School integration",
   "scripts": {
     "build": "rollup -c",

@@ -87,6 +87,18 @@ const t={ATTRIBUTE:1},e$1=t=>(...e)=>({_$litDirective$:t,values:e});class i{cons
 
 const SCHEMA = [
     {
+        name: "appearance",
+        selector: {
+            select: {
+                mode: "dropdown",
+                options: [
+                    { value: "default", label: "Default" },
+                    { value: "bubble", label: "Bubble" }
+                ]
+            }
+        }
+    },
+    {
         name: "entity",
         required: true,
         selector: { entity: { integration: "time_for_school", domain: "sensor" } }
@@ -94,12 +106,13 @@ const SCHEMA = [
     { name: "name", selector: { text: {} } }
 ];
 const LABELS = {
+    appearance: "Appearance",
     entity: "Time for School entity",
     name: "Name (optional)"
 };
 let TimeForSchoolCardEditor = class TimeForSchoolCardEditor extends i$1 {
     setConfig(config) {
-        this._config = { ...config };
+        this._config = { appearance: "default", ...config };
     }
     _valueChanged(ev) {
         ev.stopPropagation();
@@ -180,9 +193,10 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
             throw new Error("You must define an entity for lovelace-time-for-school-card");
         }
         this._config = config;
+        this.setAttribute("data-appearance", config.appearance === "bubble" ? "bubble" : "default");
     }
     getCardSize() {
-        return 7;
+        return 3;
     }
     static getConfigElement() {
         return document.createElement("lovelace-time-for-school-editor");
@@ -210,9 +224,6 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
     }
     _lang() {
         return this.hass?.locale?.language || undefined;
-    }
-    _friendly(entityId) {
-        return this.hass?.states?.[entityId]?.attributes?.friendly_name || entityId;
     }
     _fmtTime(value) {
         if (!value)
@@ -280,6 +291,12 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
     _setDay(day, partial) {
         return this._call("set_day", { day, ...partial }, `day-${day}`);
     }
+    _openSettings() {
+        this.renderRoot.querySelector("dialog")?.showModal();
+    }
+    _closeSettings() {
+        this.renderRoot.querySelector("dialog")?.close();
+    }
     _sliderInput(key, ev) {
         this._draft = { ...this._draft, [key]: Number(ev.target.value) };
     }
@@ -327,7 +344,13 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
               <div class="subtitle">${this._renderSubtitle(st, nextFire, runStarted)}</div>
             </div>
           </div>
-          <div class="pill"><span class="dot"></span>${STATE_LABELS[st] ?? st}</div>
+          <div class="header-actions">
+            <div class="pill"><span class="dot"></span>${STATE_LABELS[st] ?? st}</div>
+            <button class="icon-button" type="button" title="Configure" aria-label="Configure"
+              @click=${this._openSettings}>
+              <ha-icon icon="mdi:cog-outline"></ha-icon>
+            </button>
+          </div>
         </div>
 
         ${alerting
@@ -375,7 +398,25 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
               ></ha-switch>
             </label>
           </div>
+        </div>
+      </ha-card>
 
+      <dialog aria-labelledby="settings-title" @click=${(e) => {
+            if (e.target !== e.currentTarget)
+                return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+                this._closeSettings();
+            }
+        }}>
+        <div class="dialog-header">
+          <h2 id="settings-title">${title} settings</h2>
+          <button class="icon-button" type="button" title="Close settings" aria-label="Close settings"
+            autofocus @click=${this._closeSettings}>
+            <ha-icon icon="mdi:close"></ha-icon>
+          </button>
+        </div>
+        <div class="settings">
           <div class="week">
             <span class="label"><ha-icon icon="mdi:calendar-week"></ha-icon>Weekly schedule</span>
             ${WEEKDAYS.map((day) => {
@@ -383,6 +424,7 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
             return x `
                 <div class=${e({ day: true, off: !d.enabled, dim: !enabled })}>
                   <ha-switch
+                    aria-label=${`${WEEKDAY_LABELS[day]} enabled`}
                     .checked=${Boolean(d.enabled)}
                     @change=${(e) => this._setDay(day, { enabled: e.target.checked })}
                   ></ha-switch>
@@ -390,6 +432,7 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
                   <input
                     class="time-input"
                     type="time"
+                    aria-label=${`${WEEKDAY_LABELS[day]} time`}
                     .value=${this._normalizeTime(d.time)}
                     ?disabled=${!d.enabled}
                     @change=${(e) => this._setDay(day, { time: e.target.value })}
@@ -404,19 +447,11 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
 
           <div class="field chips-field">
             <span class="label"><ha-icon icon="mdi:television-off"></ha-icon>Turns off</span>
-            <div class="chips">
-              ${offEntities.length
-            ? offEntities.map((e) => x `<span class="chip">${this._friendly(e)}</span>`)
-            : x `<span class="value muted">Nothing configured</span>`}
-            </div>
+            ${this._renderTargets("off_entities", offEntities, ["media_player", "switch", "light", "fan", "remote", "input_boolean"])}
           </div>
           <div class="field chips-field">
             <span class="label"><ha-icon icon="mdi:lightbulb-group-outline"></ha-icon>Blinks</span>
-            <div class="chips">
-              ${blinkLights.length
-            ? blinkLights.map((e) => x `<span class="chip">${this._friendly(e)}</span>`)
-            : x `<span class="value muted">No lights configured</span>`}
-            </div>
+            ${this._renderTargets("blink_lights", blinkLights, ["light"])}
           </div>
         </div>
 
@@ -435,13 +470,16 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
             class="text-button"
             type="button"
             ?disabled=${this._busy === "trigger_now"}
-            @click=${() => this._call("trigger_now")}
+            @click=${() => {
+            this._closeSettings();
+            return this._call("trigger_now");
+        }}
           >
             <ha-icon icon="mdi:play-circle-outline"></ha-icon>
             Test now
           </button>
         </div>
-      </ha-card>
+      </dialog>
     `;
     }
     _renderSubtitle(st, nextFire, runStarted) {
@@ -476,6 +514,24 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
       </div>
     `;
     }
+    _renderTargets(key, value, domains) {
+        return x `
+      <ha-selector
+        .hass=${this.hass}
+        .selector=${{ entity: { multiple: true, domain: domains } }}
+        .value=${value}
+        .label=${key === "off_entities" ? "Turns off" : "Blinks"}
+        .disabled=${this._busy !== null}
+        @value-changed=${(ev) => {
+            ev.stopPropagation();
+            const selected = ev.detail.value ?? [];
+            if (Array.isArray(selected) && selected.every((item) => typeof item === "string")) {
+                void this._set({ [key]: selected });
+            }
+        }}
+      ></ha-selector>
+    `;
+    }
 };
 TimeForSchoolCard.styles = i$4 `
     :host {
@@ -508,6 +564,37 @@ TimeForSchoolCard.styles = i$4 `
       gap: 12px;
       min-width: 0;
     }
+    .header-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+    .icon-button {
+      display: inline-grid;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--tfs-muted);
+      cursor: pointer;
+      flex: none;
+    }
+    .icon-button:hover { background: var(--tfs-surface); }
+    button:focus-visible { outline: 2px solid var(--tfs-accent); outline-offset: 2px; }
+    dialog {
+      box-sizing: border-box;
+      width: min(520px, calc(100vw - 32px));
+      max-height: calc(100dvh - 32px);
+      padding: 20px;
+      border: 1px solid var(--divider-color, #ddd);
+      border-radius: var(--tfs-radius);
+      background: var(--card-background-color, #fff);
+      color: var(--primary-text-color, #212121);
+      box-shadow: 0 12px 40px #0004;
+      overflow: auto;
+    }
+    dialog::backdrop { background: #0007; }
+    .dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .dialog-header h2 { margin: 0; font-size: 1.1rem; font-weight: 600; overflow-wrap: anywhere; }
     .icon-wrap {
       width: 42px;
       height: 42px;
@@ -526,7 +613,7 @@ TimeForSchoolCard.styles = i$4 `
       font-size: 1.1rem;
       font-weight: 600;
       line-height: 1.25;
-      white-space: nowrap;
+      overflow-wrap: anywhere;
       overflow: hidden;
       text-overflow: ellipsis;
     }
@@ -695,14 +782,8 @@ TimeForSchoolCard.styles = i$4 `
       color: var(--primary-text-color);
     }
     .slider-field ha-slider { width: 100%; margin: 0 -4px; }
-    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-    .chip {
-      font-size: 0.78rem;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: color-mix(in srgb, var(--tfs-accent) 12%, transparent);
-      color: var(--primary-text-color);
-    }
+    .chips-field { grid-column: 1 / -1; }
+    ha-selector { display: block; min-width: 0; }
 
     .footer {
       margin-top: 14px;
@@ -739,8 +820,62 @@ TimeForSchoolCard.styles = i$4 `
     }
     @keyframes tfs-blink { to { opacity: 0.25; } }
 
+    :host([data-appearance="bubble"]) {
+      --tfs-accent: var(--bubble-accent-color, var(--primary-color, #03a9f4));
+      --tfs-surface: var(--bubble-secondary-background-color, var(--card-background-color, #fff));
+      --tfs-radius: var(--bubble-border-radius, 28px);
+      --mdc-theme-primary: var(--tfs-accent);
+      --switch-checked-color: var(--tfs-accent);
+    }
+    :host([data-appearance="bubble"]) ha-card,
+    :host([data-appearance="bubble"]) dialog {
+      background: var(--bubble-main-background-color, var(--secondary-background-color, #f2f3f5));
+      border: var(--bubble-border, none);
+      border-radius: var(--tfs-radius);
+      box-shadow: var(--bubble-box-shadow, none);
+    }
+    :host([data-appearance="bubble"]) .header { gap: 8px; }
+    :host([data-appearance="bubble"]) .title { font-size: 1rem; }
+    :host([data-appearance="bubble"]) .icon-wrap {
+      border-radius: var(--bubble-icon-border-radius, 50%);
+      background: var(--bubble-icon-background-color, var(--tfs-surface));
+    }
+    :host([data-appearance="bubble"]) .icon-button,
+    :host([data-appearance="bubble"]) .text-button {
+      border-radius: var(--bubble-sub-button-border-radius, 20px);
+      background: var(--bubble-sub-button-background-color, var(--tfs-surface));
+    }
+    :host([data-appearance="bubble"]) .icon-button:hover,
+    :host([data-appearance="bubble"]) .text-button:hover { filter: brightness(0.95); }
+    :host([data-appearance="bubble"]) .toggles {
+      border-radius: var(--bubble-sub-button-border-radius, 20px);
+    }
+    :host([data-appearance="bubble"]) .toggle { padding: 12px; }
+    :host([data-appearance="bubble"]) .pill { letter-spacing: 0; }
+    :host([data-appearance="bubble"]) .time-input,
+    :host([data-appearance="bubble"]) select {
+      background: var(--tfs-surface);
+      border-radius: var(--bubble-sub-button-border-radius, 20px);
+    }
+    :host([data-appearance="bubble"]) .day,
+    :host([data-appearance="bubble"]) .preset {
+      border-radius: var(--bubble-sub-button-border-radius, 20px);
+    }
+    :host([data-appearance="bubble"]) .hero {
+      border-radius: var(--bubble-sub-button-border-radius, 20px);
+      background: color-mix(in srgb, var(--tfs-ring-color) 12%, var(--tfs-surface));
+    }
+    :host([data-appearance="bubble"]) .stop {
+      border-radius: var(--bubble-sub-button-border-radius, 24px);
+    }
+
     @media (max-width: 480px) {
       .settings { grid-template-columns: 1fr; }
+      dialog { padding: 16px; }
+      .day { gap: 8px; }
+      .header { gap: 6px; }
+      .header-main { gap: 8px; }
+      .toggle > span { white-space: normal; flex-wrap: wrap; }
     }
   `;
 __decorate([

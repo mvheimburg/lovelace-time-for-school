@@ -6,11 +6,13 @@ integration.
 
 ![The card armed and alerting](images/screenshot.png)
 
-- Weekly schedule: an on/off switch and a time for every weekday.
-- Master enabled switch and skip-next.
-- Blink count and blink interval sliders.
-- Shows which entities get turned off and which lights blink.
-- Big **Stop** button while the alert is running, "Test now" to try it.
+- Compact main card with status, next alert, master enabled switch and skip-next.
+- Gear button opens settings with the weekly schedule, blink count and interval,
+  editable device selections, and **Test now**. Changes apply immediately.
+- Device selections persist in the integration options. Changing devices during
+  an alert stops it and restores the lights before applying the new selection.
+- Close settings with the close button, Escape, or a click outside the modal.
+- Big **Stop** button on the main card while the alert is running.
 - Failed service calls show a Home Assistant toast.
 
 On a phone the card stacks into a single column:
@@ -35,6 +37,31 @@ type: custom:lovelace-time-for-school-card
 entity: sensor.time_for_school
 name: School run        # optional
 ```
+
+## Appearance
+
+Choose **Default** or **Bubble** in the dashboard card editor, or add
+`appearance: bubble` to the card YAML. Omitting it keeps the default appearance.
+The Bubble preset styles both the compact card and its settings modal; it does
+not require Bubble Card to be installed.
+
+The preset inherits these shared CSS variables from your Home Assistant theme:
+`--bubble-main-background-color`, `--bubble-secondary-background-color`,
+`--bubble-accent-color`, `--bubble-border-radius`, `--bubble-icon-border-radius`,
+`--bubble-icon-background-color`, `--bubble-sub-button-border-radius`,
+`--bubble-sub-button-background-color`, `--bubble-border`, and
+`--bubble-box-shadow`. Without overrides it uses the current HA theme colors
+and rounded Bubble-style defaults. Alarm warning and stop colors stay distinct.
+
+For example, in an HA theme (theme keys omit the leading `--`):
+
+```yaml
+bubble-border-radius: 28px
+bubble-accent-color: "#009688"
+```
+
+CSS applied locally inside another Bubble Card does not carry over. This is
+a visual preset, not support for Bubble Card modules or its pop-up engine.
 
 ## Build
 
