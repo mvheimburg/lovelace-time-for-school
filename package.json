@@ -1,12 +1,13 @@
 {
   "name": "lovelace-time-for-school",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Lovelace card for the Time for School integration",
   "scripts": {
     "build": "rollup -c",
     "build:watch": "rollup -c -w",
-    "lint": "eslint src",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "lint": "eslint src tests",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^25.0.8",
@@ -20,6 +21,10 @@
     "rollup": "^4.21.0",
     "tslib": "^2.8.1",
     "typescript": "^5.5.0",
-    "typescript-eslint": "^8.57.0"
+    "typescript-eslint": "^8.57.0",
+    "vitest": "^5.0.1",
+    "vite": "^7.3.6",
+    "playwright": "^1.63.0",
+    "@vitest/browser-playwright": "^5.0.1"
   }
 }

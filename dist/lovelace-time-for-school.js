@@ -27,6 +27,115 @@ typeof SuppressedError === "function" ? SuppressedError : function (error, suppr
     return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
 };
 
+function language(hass) {
+    const code = (hass?.language || hass?.locale?.language || "en")
+        .toLowerCase()
+        .replace(/_/g, "-")
+        .split("-")[0];
+    return ["nb", "no", "nn"].includes(code) ? "nb" : "en";
+}
+const en = {
+    "No day enabled": "No day enabled",
+    "Time for School entity": "Time for School entity",
+    "Name (optional)": "Name (optional)",
+    Appearance: "Appearance",
+    Default: "Default",
+    Bubble: "Bubble",
+    "Lights are blinking and screens are off · since": "Lights are blinking and screens are off · since",
+    "No upcoming alert": "No upcoming alert",
+    "Time for school!": "Time for school!",
+    "Time for school": "Time for school",
+    "Weekly schedule": "Weekly schedule",
+    "Close settings": "Close settings",
+    "Blink interval": "Blink interval",
+    "Alert is off": "Alert is off",
+    "Blink count": "Blink count",
+    Configure: "Configure",
+    "Skip next": "Skip next",
+    "(not set)": "(not set)",
+    "Turns off": "Turns off",
+    "Test now": "Test now",
+    Tomorrow: "Tomorrow",
+    settings: "settings",
+    Enabled: "Enabled",
+    Blinks: "Blinks",
+    Today: "Today",
+    "Next:": "Next:",
+    Stop: "Stop",
+    Started: "Started",
+    h: "h",
+    in: "in",
+    ago: "ago",
+    "Entity not found": "Entity not found",
+    "Define an entity": "Define an entity",
+    Time: "Time",
+    "Action failed": "Action failed",
+    Monday: "Monday",
+    Tuesday: "Tuesday",
+    Wednesday: "Wednesday",
+    Thursday: "Thursday",
+    Friday: "Friday",
+    Saturday: "Saturday",
+    Sunday: "Sunday",
+    Off: "Off",
+    Armed: "Armed",
+    "Time to go!": "Time to go!",
+    Unavailable: "Unavailable",
+    Unknown: "Unknown",
+};
+const nb = {
+    "No day enabled": "Ingen dager aktivert",
+    "Time for School entity": "Tid for skolen-enhet",
+    "Name (optional)": "Navn (valgfritt)",
+    Appearance: "Utseende",
+    Default: "Standard",
+    Bubble: "Boble",
+    "Lights are blinking and screens are off · since": "Lysene blinker og skjermene er av · siden",
+    "No upcoming alert": "Ingen kommende varsling",
+    "Time for school!": "Tid for skolen!",
+    "Time for school": "Tid for skolen",
+    "Weekly schedule": "Ukeplan",
+    "Close settings": "Lukk innstillinger",
+    "Blink interval": "Blinkintervall",
+    "Alert is off": "Varsling er slått av",
+    "Blink count": "Antall blink",
+    Configure: "Konfigurer",
+    "Skip next": "Hopp over neste",
+    "(not set)": "(ikke angitt)",
+    "Turns off": "Slår av",
+    "Test now": "Test nå",
+    Tomorrow: "I morgen",
+    settings: "innstillinger",
+    Enabled: "Aktivert",
+    Blinks: "Blinker",
+    Today: "I dag",
+    "Next:": "Neste:",
+    Stop: "Stopp",
+    Started: "Startet",
+    h: "t",
+    in: "om",
+    ago: "siden",
+    "Entity not found": "Fant ikke enheten",
+    "Define an entity": "Du må angi en enhet",
+    Time: "Tid",
+    "Action failed": "Handlingen mislyktes",
+    Monday: "Mandag",
+    Tuesday: "Tirsdag",
+    Wednesday: "Onsdag",
+    Thursday: "Torsdag",
+    Friday: "Fredag",
+    Saturday: "Lørdag",
+    Sunday: "Søndag",
+    Off: "Av",
+    Armed: "Aktivert",
+    "Time to go!": "På tide å gå!",
+    Unavailable: "Utilgjengelig",
+    Unknown: "Ukjent",
+};
+function localize(hass, key) {
+    return (language(hass) === "nb" ? nb : en)[key];
+}
+
 /**
  * @license
  * Copyright 2019 Google LLC
@@ -85,32 +194,8 @@ const t={ATTRIBUTE:1},e$1=t=>(...e)=>({_$litDirective$:t,values:e});class i{cons
  * SPDX-License-Identifier: BSD-3-Clause
  */const e=e$1(class extends i{constructor(t$1){if(super(t$1),t$1.type!==t.ATTRIBUTE||"class"!==t$1.name||t$1.strings?.length>2)throw Error("`classMap()` can only be used in the `class` attribute and must be the only part in the attribute.")}render(t){return " "+Object.keys(t).filter((s=>t[s])).join(" ")+" "}update(s,[i]){if(void 0===this.st){this.st=new Set,void 0!==s.strings&&(this.nt=new Set(s.strings.join(" ").split(/\s/).filter((t=>""!==t))));for(const t in i)i[t]&&!this.nt?.has(t)&&this.st.add(t);return this.render(i)}const r=s.element.classList;for(const t of this.st)t in i||(r.remove(t),this.st.delete(t));for(const t in i){const s=!!i[t];s===this.st.has(t)||this.nt?.has(t)||(s?(r.add(t),this.st.add(t)):(r.remove(t),this.st.delete(t)));}return T}});
 
-const SCHEMA = [
-    {
-        name: "appearance",
-        selector: {
-            select: {
-                mode: "dropdown",
-                options: [
-                    { value: "default", label: "Default" },
-                    { value: "bubble", label: "Bubble" }
-                ]
-            }
-        }
-    },
-    {
-        name: "entity",
-        required: true,
-        selector: { entity: { integration: "time_for_school", domain: "sensor" } }
-    },
-    { name: "name", selector: { text: {} } }
-];
-const LABELS = {
-    appearance: "Appearance",
-    entity: "Time for School entity",
-    name: "Name (optional)"
-};
 let TimeForSchoolCardEditor = class TimeForSchoolCardEditor extends i$1 {
+    _t(key) { return localize(this.hass, key); }
     setConfig(config) {
         this._config = { appearance: "default", ...config };
     }
@@ -133,6 +218,31 @@ let TimeForSchoolCardEditor = class TimeForSchoolCardEditor extends i$1 {
     render() {
         if (!this.hass || !this._config)
             return x ``;
+        const SCHEMA = [
+            {
+                name: "appearance",
+                selector: {
+                    select: {
+                        mode: "dropdown",
+                        options: [
+                            { value: "default", label: this._t("Default") },
+                            { value: "bubble", label: this._t("Bubble") }
+                        ]
+                    }
+                }
+            },
+            {
+                name: "entity",
+                required: true,
+                selector: { entity: { integration: "time_for_school", domain: "sensor" } }
+            },
+            { name: "name", selector: { text: {} } }
+        ];
+        const LABELS = {
+            appearance: this._t("Appearance"),
+            entity: this._t("Time for School entity"),
+            name: this._t("Name (optional)")
+        };
         return x `
       <ha-form
         .hass=${this.hass}
@@ -188,9 +298,10 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
         this._draft = {};
         this._busy = null;
     }
+    _t(key) { return localize(this.hass, key); }
     setConfig(config) {
         if (!config.entity) {
-            throw new Error("You must define an entity for lovelace-time-for-school-card");
+            throw new Error(this._t("Define an entity") + ": lovelace-time-for-school-card");
         }
         this._config = config;
         this.setAttribute("data-appearance", config.appearance === "bubble" ? "bubble" : "default");
@@ -223,7 +334,7 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
         return this.hass?.states?.[this._config?.entity];
     }
     _lang() {
-        return this.hass?.locale?.language || undefined;
+        return language(this.hass);
     }
     _fmtTime(value) {
         if (!value)
@@ -243,9 +354,9 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
         const startOf = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
         const dayDiff = Math.round((startOf(d) - startOf(now)) / 86400000);
         if (dayDiff === 0)
-            return "Today";
+            return this._t("Today");
         if (dayDiff === 1)
-            return "Tomorrow";
+            return this._t("Tomorrow");
         return d.toLocaleDateString(this._lang(), { weekday: "short" });
     }
     _fmtRelative(value) {
@@ -257,8 +368,8 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
         const abs = Math.abs(diffMin);
         const h = Math.floor(abs / 60);
         const m = abs % 60;
-        const span = h ? (m ? `${h} h ${m} min` : `${h} h`) : `${m} min`;
-        return diffMin >= 0 ? `in ${span}` : `${span} ago`;
+        const span = h ? (m ? `${h} ${this._t("h")} ${m} min` : `${h} ${this._t("h")}`) : `${m} min`;
+        return diffMin >= 0 ? `${this._t("in")} ${span}` : `${span} ${this._t("ago")}`;
     }
     _normalizeTime(value) {
         if (!value)
@@ -279,7 +390,7 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
         }
         catch (err) {
             const msg = err?.message || err?.error || String(err);
-            this._toast(`Time for school: ${service} failed (${msg})`);
+            this._toast(`${this._t("Time for school")}: ${this._t("Action failed")} (${msg})`);
         }
         finally {
             this._busy = null;
@@ -314,7 +425,7 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
         <ha-card>
           <div class="error">
             <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
-            Entity ${this._config?.entity || "(not set)"} not found
+            ${this._t("Entity not found")}: ${this._config?.entity || this._t("(not set)")}
           </div>
         </ha-card>
       `;
@@ -332,7 +443,7 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
         const runStarted = a.run_started ?? null;
         const offEntities = Array.isArray(a.off_entities) ? a.off_entities : [];
         const blinkLights = Array.isArray(a.blink_lights) ? a.blink_lights : [];
-        const title = this._config.name || a.friendly_name || "Time for school";
+        const title = this._config.name || a.friendly_name || this._t("Time for school");
         const icon = STATE_ICONS[st] ?? "mdi:school";
         return x `
       <ha-card class=${e({ [`is-${st}`]: true })}>
@@ -345,8 +456,8 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
             </div>
           </div>
           <div class="header-actions">
-            <div class="pill"><span class="dot"></span>${STATE_LABELS[st] ?? st}</div>
-            <button class="icon-button" type="button" title="Configure" aria-label="Configure"
+            <div class="pill"><span class="dot"></span>${STATE_LABELS[st] ? this._t(STATE_LABELS[st]) : st}</div>
+            <button class="icon-button" type="button" title=${this._t("Configure")} aria-label=${this._t("Configure")}
               @click=${this._openSettings}>
               <ha-icon icon="mdi:cog-outline"></ha-icon>
             </button>
@@ -357,9 +468,9 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
             ? x `
               <div class="hero">
                 <div class="hero-text">
-                  <span class="hero-title">Time for school!</span>
+                  <span class="hero-title">${this._t("Time for school!")}</span>
                   <span class="hero-sub">
-                    Lights are blinking and screens are off · since ${this._fmtTime(runStarted)}
+                    ${this._t("Lights are blinking and screens are off · since")} ${this._fmtTime(runStarted)}
                   </span>
                 </div>
                 <button
@@ -369,7 +480,7 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
                   @click=${() => this._call("stop")}
                 >
                   <ha-icon icon="mdi:stop-circle-outline"></ha-icon>
-                  Stop
+                  ${this._t("Stop")}
                 </button>
               </div>
             `
@@ -378,7 +489,7 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
         <div class="settings">
           <div class="toggles">
             <label class="toggle">
-              <span><ha-icon icon="mdi:power"></ha-icon>Enabled</span>
+              <span><ha-icon icon="mdi:power"></ha-icon>${this._t("Enabled")}</span>
               <ha-switch
                 .checked=${enabled}
                 @change=${(e) => this._set({ enabled: e.target.checked })}
@@ -386,7 +497,7 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
             </label>
             <label class="toggle">
               <span>
-                <ha-icon icon="mdi:debug-step-over"></ha-icon>Skip next
+                <ha-icon icon="mdi:debug-step-over"></ha-icon>${this._t("Skip next")}
                 ${skipNext && skippedFire
             ? x `<small>${this._fmtDay(skippedFire)} ${this._fmtTime(skippedFire)}</small>`
             : E}
@@ -410,29 +521,29 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
             }
         }}>
         <div class="dialog-header">
-          <h2 id="settings-title">${title} settings</h2>
-          <button class="icon-button" type="button" title="Close settings" aria-label="Close settings"
+          <h2 id="settings-title">${title} ${this._t("settings")}</h2>
+          <button class="icon-button" type="button" title=${this._t("Close settings")} aria-label=${this._t("Close settings")}
             autofocus @click=${this._closeSettings}>
             <ha-icon icon="mdi:close"></ha-icon>
           </button>
         </div>
         <div class="settings">
           <div class="week">
-            <span class="label"><ha-icon icon="mdi:calendar-week"></ha-icon>Weekly schedule</span>
+            <span class="label"><ha-icon icon="mdi:calendar-week"></ha-icon>${this._t("Weekly schedule")}</span>
             ${WEEKDAYS.map((day) => {
             const d = schedule[day] ?? { enabled: false, time: "07:45" };
             return x `
                 <div class=${e({ day: true, off: !d.enabled, dim: !enabled })}>
                   <ha-switch
-                    aria-label=${`${WEEKDAY_LABELS[day]} enabled`}
+                    aria-label=${`${this._t(WEEKDAY_LABELS[day])} ${this._t("Enabled")}`}
                     .checked=${Boolean(d.enabled)}
                     @change=${(e) => this._setDay(day, { enabled: e.target.checked })}
                   ></ha-switch>
-                  <span class="day-name">${WEEKDAY_LABELS[day]}</span>
+                  <span class="day-name">${this._t(WEEKDAY_LABELS[day])}</span>
                   <input
                     class="time-input"
                     type="time"
-                    aria-label=${`${WEEKDAY_LABELS[day]} time`}
+                    aria-label=${`${this._t(WEEKDAY_LABELS[day])} ${this._t("Time")}`}
                     .value=${this._normalizeTime(d.time)}
                     ?disabled=${!d.enabled}
                     @change=${(e) => this._setDay(day, { time: e.target.value })}
@@ -442,15 +553,15 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
         })}
           </div>
 
-          ${this._renderSlider("mdi:lightbulb-on-outline", "Blink count", "blink_count", blinkCount, 1, 20, 1, `${blinkCount}×`)}
-          ${this._renderSlider("mdi:timer-outline", "Blink interval", "blink_interval", blinkInterval, 0.2, 5, 0.1, `${blinkInterval.toFixed(1)} s`)}
+          ${this._renderSlider("mdi:lightbulb-on-outline", this._t("Blink count"), "blink_count", blinkCount, 1, 20, 1, `${blinkCount}×`)}
+          ${this._renderSlider("mdi:timer-outline", this._t("Blink interval"), "blink_interval", blinkInterval, 0.2, 5, 0.1, `${blinkInterval.toFixed(1)} s`)}
 
           <div class="field chips-field">
-            <span class="label"><ha-icon icon="mdi:television-off"></ha-icon>Turns off</span>
+            <span class="label"><ha-icon icon="mdi:television-off"></ha-icon>${this._t("Turns off")}</span>
             ${this._renderTargets("off_entities", offEntities, ["media_player", "switch", "light", "fan", "remote", "input_boolean"])}
           </div>
           <div class="field chips-field">
-            <span class="label"><ha-icon icon="mdi:lightbulb-group-outline"></ha-icon>Blinks</span>
+            <span class="label"><ha-icon icon="mdi:lightbulb-group-outline"></ha-icon>${this._t("Blinks")}</span>
             ${this._renderTargets("blink_lights", blinkLights, ["light"])}
           </div>
         </div>
@@ -459,12 +570,12 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
           <span class="footer-note">
             ${nextFire && !alerting
             ? x `<ha-icon icon="mdi:bell-outline"></ha-icon>
-                  Next: ${this._fmtDay(nextFire)} ${this._fmtTime(nextFire)}`
+                  ${this._t("Next:")} ${this._fmtDay(nextFire)} ${this._fmtTime(nextFire)}`
             : enabled
                 ? alerting
                     ? E
-                    : x `<ha-icon icon="mdi:bell-off-outline"></ha-icon> No day enabled`
-                : x `<ha-icon icon="mdi:bell-off-outline"></ha-icon> Alert is off`}
+                    : x `<ha-icon icon="mdi:bell-off-outline"></ha-icon> ${this._t("No day enabled")}`
+                : x `<ha-icon icon="mdi:bell-off-outline"></ha-icon> ${this._t("Alert is off")}`}
           </span>
           <button
             class="text-button"
@@ -476,7 +587,7 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
         }}
           >
             <ha-icon icon="mdi:play-circle-outline"></ha-icon>
-            Test now
+            ${this._t("Test now")}
           </button>
         </div>
       </dialog>
@@ -487,11 +598,11 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
             case "armed":
                 return nextFire
                     ? `${this._fmtDay(nextFire)} ${this._fmtTime(nextFire)} · ${this._fmtRelative(nextFire)}`
-                    : "No upcoming alert";
+                    : this._t("No upcoming alert");
             case "alerting":
-                return `Started ${this._fmtTime(runStarted)}`;
+                return `${this._t("Started")} ${this._fmtTime(runStarted)}`;
             case "disarmed":
-                return "Alert is off";
+                return this._t("Alert is off");
             default:
                 return "";
         }
@@ -520,7 +631,7 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
         .hass=${this.hass}
         .selector=${{ entity: { multiple: true, domain: domains } }}
         .value=${value}
-        .label=${key === "off_entities" ? "Turns off" : "Blinks"}
+        .label=${key === "off_entities" ? this._t("Turns off") : this._t("Blinks")}
         .disabled=${this._busy !== null}
         @value-changed=${(ev) => {
             ev.stopPropagation();

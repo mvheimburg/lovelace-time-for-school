@@ -1,3 +1,4 @@
+import { localize, language, type TranslationKey } from "./localize";
 import { LitElement, css, html, nothing } from "lit";
 import { property, state, customElement } from "lit/decorators.js";
 import { classMap } from "lit/directives/class-map.js";
@@ -10,6 +11,7 @@ interface HassEntity {
 }
 
 interface HomeAssistant {
+  language?: string;
   states: Record<string, HassEntity>;
   locale?: { language?: string };
   callService(domain: string, service: string, data?: Record<string, any>): Promise<unknown>;
@@ -28,7 +30,7 @@ interface DaySchedule {
 }
 
 const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
-const WEEKDAY_LABELS: Record<string, string> = {
+const WEEKDAY_LABELS: Record<string, TranslationKey> = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -38,7 +40,7 @@ const WEEKDAY_LABELS: Record<string, string> = {
   sun: "Sunday"
 };
 
-const STATE_LABELS: Record<string, string> = {
+const STATE_LABELS: Record<string, TranslationKey> = {
   disarmed: "Off",
   armed: "Armed",
   alerting: "Time to go!",
@@ -60,9 +62,11 @@ export class TimeForSchoolCard extends LitElement {
   @state() private _busy: string | null = null;
   private _tick?: number;
 
+  private _t(key: TranslationKey): string { return localize(this.hass, key); }
+
   public setConfig(config: TimeForSchoolCardConfig): void {
     if (!config.entity) {
-      throw new Error("You must define an entity for lovelace-time-for-school-card");
+      throw new Error(this._t("Define an entity") + ": lovelace-time-for-school-card");
     }
     this._config = config;
     this.setAttribute("data-appearance", config.appearance === "bubble" ? "bubble" : "default");
@@ -105,7 +109,7 @@ export class TimeForSchoolCard extends LitElement {
   }
 
   private _lang(): string | undefined {
-    return this.hass?.locale?.language || undefined;
+    return language(this.hass);
   }
 
   private _fmtTime(value: string | null | undefined): string {
@@ -122,8 +126,8 @@ export class TimeForSchoolCard extends LitElement {
     const now = new Date();
     const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
     const dayDiff = Math.round((startOf(d) - startOf(now)) / 86_400_000);
-    if (dayDiff === 0) return "Today";
-    if (dayDiff === 1) return "Tomorrow";
+    if (dayDiff === 0) return this._t("Today");
+    if (dayDiff === 1) return this._t("Tomorrow");
     return d.toLocaleDateString(this._lang(), { weekday: "short" });
   }
 
@@ -134,8 +138,8 @@ export class TimeForSchoolCard extends LitElement {
     const abs = Math.abs(diffMin);
     const h = Math.floor(abs / 60);
     const m = abs % 60;
-    const span = h ? (m ? `${h} h ${m} min` : `${h} h`) : `${m} min`;
-    return diffMin >= 0 ? `in ${span}` : `${span} ago`;
+    const span = h ? (m ? `${h} ${this._t("h")} ${m} min` : `${h} ${this._t("h")}`) : `${m} min`;
+    return diffMin >= 0 ? `${this._t("in")} ${span}` : `${span} ${this._t("ago")}`;
   }
 
   private _normalizeTime(value: unknown): string {
@@ -159,7 +163,7 @@ export class TimeForSchoolCard extends LitElement {
       });
     } catch (err: any) {
       const msg = err?.message || err?.error || String(err);
-      this._toast(`Time for school: ${service} failed (${msg})`);
+      this._toast(`${this._t("Time for school")}: ${this._t("Action failed")} (${msg})`);
     } finally {
       this._busy = null;
     }
@@ -201,7 +205,7 @@ export class TimeForSchoolCard extends LitElement {
         <ha-card>
           <div class="error">
             <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
-            Entity ${this._config?.entity || "(not set)"} not found
+            ${this._t("Entity not found")}: ${this._config?.entity || this._t("(not set)")}
           </div>
         </ha-card>
       `;
@@ -220,7 +224,7 @@ export class TimeForSchoolCard extends LitElement {
     const runStarted: string | null = a.run_started ?? null;
     const offEntities: string[] = Array.isArray(a.off_entities) ? a.off_entities : [];
     const blinkLights: string[] = Array.isArray(a.blink_lights) ? a.blink_lights : [];
-    const title = this._config.name || a.friendly_name || "Time for school";
+    const title = this._config.name || a.friendly_name || this._t("Time for school");
     const icon = STATE_ICONS[st] ?? "mdi:school";
 
     return html`
@@ -234,8 +238,8 @@ export class TimeForSchoolCard extends LitElement {
             </div>
           </div>
           <div class="header-actions">
-            <div class="pill"><span class="dot"></span>${STATE_LABELS[st] ?? st}</div>
-            <button class="icon-button" type="button" title="Configure" aria-label="Configure"
+            <div class="pill"><span class="dot"></span>${STATE_LABELS[st] ? this._t(STATE_LABELS[st]) : st}</div>
+            <button class="icon-button" type="button" title=${this._t("Configure")} aria-label=${this._t("Configure")}
               @click=${this._openSettings}>
               <ha-icon icon="mdi:cog-outline"></ha-icon>
             </button>
@@ -246,9 +250,9 @@ export class TimeForSchoolCard extends LitElement {
           ? html`
               <div class="hero">
                 <div class="hero-text">
-                  <span class="hero-title">Time for school!</span>
+                  <span class="hero-title">${this._t("Time for school!")}</span>
                   <span class="hero-sub">
-                    Lights are blinking and screens are off · since ${this._fmtTime(runStarted)}
+                    ${this._t("Lights are blinking and screens are off · since")} ${this._fmtTime(runStarted)}
                   </span>
                 </div>
                 <button
@@ -258,7 +262,7 @@ export class TimeForSchoolCard extends LitElement {
                   @click=${() => this._call("stop")}
                 >
                   <ha-icon icon="mdi:stop-circle-outline"></ha-icon>
-                  Stop
+                  ${this._t("Stop")}
                 </button>
               </div>
             `
@@ -267,7 +271,7 @@ export class TimeForSchoolCard extends LitElement {
         <div class="settings">
           <div class="toggles">
             <label class="toggle">
-              <span><ha-icon icon="mdi:power"></ha-icon>Enabled</span>
+              <span><ha-icon icon="mdi:power"></ha-icon>${this._t("Enabled")}</span>
               <ha-switch
                 .checked=${enabled}
                 @change=${(e: Event) =>
@@ -276,7 +280,7 @@ export class TimeForSchoolCard extends LitElement {
             </label>
             <label class="toggle">
               <span>
-                <ha-icon icon="mdi:debug-step-over"></ha-icon>Skip next
+                <ha-icon icon="mdi:debug-step-over"></ha-icon>${this._t("Skip next")}
                 ${skipNext && skippedFire
                   ? html`<small>${this._fmtDay(skippedFire)} ${this._fmtTime(skippedFire)}</small>`
                   : nothing}
@@ -300,30 +304,30 @@ export class TimeForSchoolCard extends LitElement {
         }
       }}>
         <div class="dialog-header">
-          <h2 id="settings-title">${title} settings</h2>
-          <button class="icon-button" type="button" title="Close settings" aria-label="Close settings"
+          <h2 id="settings-title">${title} ${this._t("settings")}</h2>
+          <button class="icon-button" type="button" title=${this._t("Close settings")} aria-label=${this._t("Close settings")}
             autofocus @click=${this._closeSettings}>
             <ha-icon icon="mdi:close"></ha-icon>
           </button>
         </div>
         <div class="settings">
           <div class="week">
-            <span class="label"><ha-icon icon="mdi:calendar-week"></ha-icon>Weekly schedule</span>
+            <span class="label"><ha-icon icon="mdi:calendar-week"></ha-icon>${this._t("Weekly schedule")}</span>
             ${WEEKDAYS.map((day) => {
               const d = schedule[day] ?? { enabled: false, time: "07:45" };
               return html`
                 <div class=${classMap({ day: true, off: !d.enabled, dim: !enabled })}>
                   <ha-switch
-                    aria-label=${`${WEEKDAY_LABELS[day]} enabled`}
+                    aria-label=${`${this._t(WEEKDAY_LABELS[day])} ${this._t("Enabled")}`}
                     .checked=${Boolean(d.enabled)}
                     @change=${(e: Event) =>
                       this._setDay(day, { enabled: (e.target as HTMLInputElement).checked })}
                   ></ha-switch>
-                  <span class="day-name">${WEEKDAY_LABELS[day]}</span>
+                  <span class="day-name">${this._t(WEEKDAY_LABELS[day])}</span>
                   <input
                     class="time-input"
                     type="time"
-                    aria-label=${`${WEEKDAY_LABELS[day]} time`}
+                    aria-label=${`${this._t(WEEKDAY_LABELS[day])} ${this._t("Time")}`}
                     .value=${this._normalizeTime(d.time)}
                     ?disabled=${!d.enabled}
                     @change=${(e: Event) =>
@@ -334,16 +338,16 @@ export class TimeForSchoolCard extends LitElement {
             })}
           </div>
 
-          ${this._renderSlider("mdi:lightbulb-on-outline", "Blink count", "blink_count", blinkCount, 1, 20, 1, `${blinkCount}×`)}
-          ${this._renderSlider("mdi:timer-outline", "Blink interval", "blink_interval", blinkInterval, 0.2, 5, 0.1, `${blinkInterval.toFixed(1)} s`)}
+          ${this._renderSlider("mdi:lightbulb-on-outline", this._t("Blink count"), "blink_count", blinkCount, 1, 20, 1, `${blinkCount}×`)}
+          ${this._renderSlider("mdi:timer-outline", this._t("Blink interval"), "blink_interval", blinkInterval, 0.2, 5, 0.1, `${blinkInterval.toFixed(1)} s`)}
 
           <div class="field chips-field">
-            <span class="label"><ha-icon icon="mdi:television-off"></ha-icon>Turns off</span>
+            <span class="label"><ha-icon icon="mdi:television-off"></ha-icon>${this._t("Turns off")}</span>
             ${this._renderTargets("off_entities", offEntities,
               ["media_player", "switch", "light", "fan", "remote", "input_boolean"])}
           </div>
           <div class="field chips-field">
-            <span class="label"><ha-icon icon="mdi:lightbulb-group-outline"></ha-icon>Blinks</span>
+            <span class="label"><ha-icon icon="mdi:lightbulb-group-outline"></ha-icon>${this._t("Blinks")}</span>
             ${this._renderTargets("blink_lights", blinkLights, ["light"])}
           </div>
         </div>
@@ -352,12 +356,12 @@ export class TimeForSchoolCard extends LitElement {
           <span class="footer-note">
             ${nextFire && !alerting
               ? html`<ha-icon icon="mdi:bell-outline"></ha-icon>
-                  Next: ${this._fmtDay(nextFire)} ${this._fmtTime(nextFire)}`
+                  ${this._t("Next:")} ${this._fmtDay(nextFire)} ${this._fmtTime(nextFire)}`
               : enabled
                 ? alerting
                   ? nothing
-                  : html`<ha-icon icon="mdi:bell-off-outline"></ha-icon> No day enabled`
-                : html`<ha-icon icon="mdi:bell-off-outline"></ha-icon> Alert is off`}
+                  : html`<ha-icon icon="mdi:bell-off-outline"></ha-icon> ${this._t("No day enabled")}`
+                : html`<ha-icon icon="mdi:bell-off-outline"></ha-icon> ${this._t("Alert is off")}`}
           </span>
           <button
             class="text-button"
@@ -369,7 +373,7 @@ export class TimeForSchoolCard extends LitElement {
             }}
           >
             <ha-icon icon="mdi:play-circle-outline"></ha-icon>
-            Test now
+            ${this._t("Test now")}
           </button>
         </div>
       </dialog>
@@ -381,11 +385,11 @@ export class TimeForSchoolCard extends LitElement {
       case "armed":
         return nextFire
           ? `${this._fmtDay(nextFire)} ${this._fmtTime(nextFire)} · ${this._fmtRelative(nextFire)}`
-          : "No upcoming alert";
+          : this._t("No upcoming alert");
       case "alerting":
-        return `Started ${this._fmtTime(runStarted)}`;
+        return `${this._t("Started")} ${this._fmtTime(runStarted)}`;
       case "disarmed":
-        return "Alert is off";
+        return this._t("Alert is off");
       default:
         return "";
     }
@@ -425,7 +429,7 @@ export class TimeForSchoolCard extends LitElement {
         .hass=${this.hass}
         .selector=${{ entity: { multiple: true, domain: domains } }}
         .value=${value}
-        .label=${key === "off_entities" ? "Turns off" : "Blinks"}
+        .label=${key === "off_entities" ? this._t("Turns off") : this._t("Blinks")}
         .disabled=${this._busy !== null}
         @value-changed=${(ev: CustomEvent) => {
           ev.stopPropagation();

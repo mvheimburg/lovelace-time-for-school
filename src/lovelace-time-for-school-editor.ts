@@ -1,7 +1,10 @@
+import { localize, type TranslationKey } from "./localize";
 import { LitElement, html, css } from "lit";
 import { property, state, customElement } from "lit/decorators.js";
 
 interface HomeAssistant {
+  language?: string;
+  locale?: { language?: string };
   states: Record<string, any>;
 }
 
@@ -12,37 +15,12 @@ interface TimeForSchoolCardConfig {
   appearance?: "default" | "bubble";
 }
 
-const SCHEMA = [
-  {
-    name: "appearance",
-    selector: {
-      select: {
-        mode: "dropdown",
-        options: [
-          { value: "default", label: "Default" },
-          { value: "bubble", label: "Bubble" }
-        ]
-      }
-    }
-  },
-  {
-    name: "entity",
-    required: true,
-    selector: { entity: { integration: "time_for_school", domain: "sensor" } }
-  },
-  { name: "name", selector: { text: {} } }
-];
-
-const LABELS: Record<string, string> = {
-  appearance: "Appearance",
-  entity: "Time for School entity",
-  name: "Name (optional)"
-};
-
 @customElement("lovelace-time-for-school-editor")
 export class TimeForSchoolCardEditor extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @state() private _config!: TimeForSchoolCardConfig;
+
+  private _t(key: TranslationKey): string { return localize(this.hass, key); }
 
   public setConfig(config: TimeForSchoolCardConfig): void {
     this._config = { appearance: "default", ...config };
@@ -66,6 +44,34 @@ export class TimeForSchoolCardEditor extends LitElement {
 
   protected render() {
     if (!this.hass || !this._config) return html``;
+
+    const SCHEMA = [
+      {
+        name: "appearance",
+        selector: {
+          select: {
+            mode: "dropdown",
+            options: [
+              { value: "default", label: this._t("Default") },
+              { value: "bubble", label: this._t("Bubble") }
+            ]
+          }
+        }
+      },
+      {
+        name: "entity",
+        required: true,
+        selector: { entity: { integration: "time_for_school", domain: "sensor" } }
+      },
+      { name: "name", selector: { text: {} } }
+    ];
+
+    const LABELS: Record<string, string> = {
+      appearance: this._t("Appearance"),
+      entity: this._t("Time for School entity"),
+      name: this._t("Name (optional)")
+    };
+
     return html`
       <ha-form
         .hass=${this.hass}
