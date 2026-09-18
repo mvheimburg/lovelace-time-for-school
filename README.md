@@ -1,3 +1,5 @@
+<img src="images/icon.png" alt="" width="96" align="right">
+
 # Lovelace Time for School Card
 
 A dashboard card for the
