@@ -34,6 +34,17 @@ function language(hass) {
         .split("-")[0];
     return ["nb", "no", "nn"].includes(code) ? "nb" : "en";
 }
+/** Preserve regional formatting independently of the translated dictionary. */
+function formattingLocale(hass) {
+    const code = (hass?.language || hass?.locale?.language || "en")
+        .toLowerCase().replace(/_/g, "-").replace(/^(no|nn)(?=-|$)/, "nb");
+    try {
+        return Intl.getCanonicalLocales(code)[0] || "en";
+    }
+    catch {
+        return "en";
+    }
+}
 const en = {
     "No day enabled": "No day enabled",
     "Time for School entity": "Time for School entity",
@@ -334,7 +345,7 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
         return this.hass?.states?.[this._config?.entity];
     }
     _lang() {
-        return language(this.hass);
+        return formattingLocale(this.hass);
     }
     _fmtTime(value) {
         if (!value)
@@ -554,7 +565,7 @@ let TimeForSchoolCard = class TimeForSchoolCard extends i$1 {
           </div>
 
           ${this._renderSlider("mdi:lightbulb-on-outline", this._t("Blink count"), "blink_count", blinkCount, 1, 20, 1, `${blinkCount}×`)}
-          ${this._renderSlider("mdi:timer-outline", this._t("Blink interval"), "blink_interval", blinkInterval, 0.2, 5, 0.1, `${blinkInterval.toFixed(1)} s`)}
+          ${this._renderSlider("mdi:timer-outline", this._t("Blink interval"), "blink_interval", blinkInterval, 0.2, 5, 0.1, `${blinkInterval.toLocaleString(this._lang(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`)}
 
           <div class="field chips-field">
             <span class="label"><ha-icon icon="mdi:television-off"></ha-icon>${this._t("Turns off")}</span>

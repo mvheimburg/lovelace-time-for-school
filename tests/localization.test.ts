@@ -187,3 +187,33 @@ it("localizes missing entities while preserving their IDs", async () => {
     "Fant ikke enheten: sensor.missing",
   );
 });
+
+it("formats fractional blink intervals in the display language", async () => {
+  const card = new TimeForSchoolCard();
+  card.setConfig({ type: "custom:lovelace-time-for-school", entity: "sensor.test" });
+  card.hass = {
+    language: "nb",
+    states: { "sensor.test": { entity_id: "sensor.test", state: "armed", attributes: { blink_interval: 0.5 } } },
+    callService: async () => {},
+  };
+  document.body.append(card);
+  await card.updateComplete;
+  expect(card.shadowRoot!.textContent).toContain("0,5 s");
+  card.hass = { ...card.hass, language: "en" };
+  await card.updateComplete;
+  expect(card.shadowRoot!.textContent).toContain("0.5 s");
+});
+
+it("preserves regional English time formatting", async () => {
+  const card = new TimeForSchoolCard();
+  card.setConfig({ type: "custom:lovelace-time-for-school", entity: "sensor.test" });
+  card.hass = {
+    language: "en-GB",
+    states: { "sensor.test": { entity_id: "sensor.test", state: "armed", attributes: { enabled: true, next_fire: new Date(2026, 8, 21, 17, 30).toISOString() } } },
+    callService: async () => {},
+  };
+  document.body.append(card);
+  await card.updateComplete;
+  expect(card.shadowRoot!.textContent).toContain("17:30");
+  expect(card.shadowRoot!.textContent).not.toContain("05:30 PM");
+});

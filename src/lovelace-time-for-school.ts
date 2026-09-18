@@ -1,4 +1,4 @@
-import { localize, language, type TranslationKey } from "./localize";
+import { localize, formattingLocale, type TranslationKey } from "./localize";
 import { LitElement, css, html, nothing } from "lit";
 import { property, state, customElement } from "lit/decorators.js";
 import { classMap } from "lit/directives/class-map.js";
@@ -109,7 +109,7 @@ export class TimeForSchoolCard extends LitElement {
   }
 
   private _lang(): string | undefined {
-    return language(this.hass);
+    return formattingLocale(this.hass);
   }
 
   private _fmtTime(value: string | null | undefined): string {
@@ -339,7 +339,7 @@ export class TimeForSchoolCard extends LitElement {
           </div>
 
           ${this._renderSlider("mdi:lightbulb-on-outline", this._t("Blink count"), "blink_count", blinkCount, 1, 20, 1, `${blinkCount}×`)}
-          ${this._renderSlider("mdi:timer-outline", this._t("Blink interval"), "blink_interval", blinkInterval, 0.2, 5, 0.1, `${blinkInterval.toFixed(1)} s`)}
+          ${this._renderSlider("mdi:timer-outline", this._t("Blink interval"), "blink_interval", blinkInterval, 0.2, 5, 0.1, `${blinkInterval.toLocaleString(this._lang(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`)}
 
           <div class="field chips-field">
             <span class="label"><ha-icon icon="mdi:television-off"></ha-icon>${this._t("Turns off")}</span>
