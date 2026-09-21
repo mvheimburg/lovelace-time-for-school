@@ -117,7 +117,7 @@ const nb: Record<TranslationKey, string> = {
   Saturday: "Lørdag",
   Sunday: "Søndag",
   Off: "Av",
-  Armed: "Aktivert",
+  Armed: "Klar",
   "Time to go!": "På tide å gå!",
   Unavailable: "Utilgjengelig",
   Unknown: "Ukjent",

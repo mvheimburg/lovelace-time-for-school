@@ -151,7 +151,7 @@ it("translates schedules, active states and errors while preserving weekday payl
 
 it.each([
   ["disarmed", "Av"],
-  ["armed", "Aktivert"],
+  ["armed", "Klar"],
   ["alerting", "På tide å gå!"],
   ["unavailable", "Utilgjengelig"],
   ["unknown", "Ukjent"],
