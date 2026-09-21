@@ -1,3 +1,4 @@
+import { colorSchemeStyles } from "./color-schemes";
 import { css } from "lit";
 
 /* "Bubble night" family style, shared in spirit with the House State, Water
@@ -582,4 +583,5 @@ export const styles = css`
       padding: 14px;
     }
   }
+  ${colorSchemeStyles}
 `;

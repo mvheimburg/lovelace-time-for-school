@@ -1,3 +1,5 @@
+import { colorSchemeSchema, colorSchemeText } from "./color-schemes";
+import type { ColorScheme } from "./color-schemes";
 import { localize, type TranslationKey } from "./localize";
 import { LitElement, html, css } from "lit";
 import { property, state, customElement } from "lit/decorators.js";
@@ -13,6 +15,7 @@ interface TimeForSchoolCardConfig {
   entity: string;
   name?: string;
   appearance?: "default" | "bubble";
+  color_scheme?: ColorScheme;
 }
 
 @customElement("lovelace-time-for-school-editor")
@@ -23,7 +26,7 @@ export class TimeForSchoolCardEditor extends LitElement {
   private _t(key: TranslationKey): string { return localize(this.hass, key); }
 
   public setConfig(config: TimeForSchoolCardConfig): void {
-    this._config = { appearance: "default", ...config };
+    this._config = { appearance: "default", color_scheme: "home-assistant", ...config };
   }
 
   private _valueChanged(ev: CustomEvent): void {
@@ -58,6 +61,7 @@ export class TimeForSchoolCardEditor extends LitElement {
           }
         }
       },
+      colorSchemeSchema(this.hass),
       {
         name: "entity",
         required: true,
@@ -67,6 +71,7 @@ export class TimeForSchoolCardEditor extends LitElement {
     ];
 
     const LABELS: Record<string, string> = {
+      color_scheme: colorSchemeText(this.hass).label,
       appearance: this._t("Appearance"),
       entity: this._t("Time for School entity"),
       name: this._t("Name (optional)")

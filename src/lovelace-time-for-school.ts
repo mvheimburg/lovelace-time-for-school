@@ -1,3 +1,5 @@
+import { applyColorScheme } from "./color-schemes";
+import type { ColorScheme } from "./color-schemes";
 import { localize, formattingLocale, type TranslationKey } from "./localize";
 import { LitElement, html, nothing } from "lit";
 import { property, state, customElement } from "lit/decorators.js";
@@ -25,6 +27,7 @@ interface TimeForSchoolCardConfig {
   entity: string;
   name?: string;
   appearance?: "default" | "bubble";
+  color_scheme?: ColorScheme;
 }
 
 interface DaySchedule {
@@ -74,6 +77,7 @@ export class TimeForSchoolCard extends LitElement {
     if (!config.entity) {
       throw new Error(this._t("Define an entity") + ": lovelace-time-for-school-card");
     }
+    applyColorScheme(this, config.color_scheme, this.hass);
     this._config = config;
     this.setAttribute("data-appearance", config.appearance === "bubble" ? "bubble" : "default");
   }
