@@ -1,7 +1,10 @@
 import { localize, formattingLocale, type TranslationKey } from "./localize";
-import { LitElement, css, html, nothing } from "lit";
+import { LitElement, html, nothing } from "lit";
 import { property, state, customElement } from "lit/decorators.js";
 import { classMap } from "lit/directives/class-map.js";
+import { live } from "lit/directives/live.js";
+import { icon, type IconName } from "./icons";
+import { styles } from "./styles";
 import "./lovelace-time-for-school-editor";
 
 interface HassEntity {
@@ -48,11 +51,14 @@ const STATE_LABELS: Record<string, TranslationKey> = {
   unknown: "Unknown"
 };
 
-const STATE_ICONS: Record<string, string> = {
-  disarmed: "mdi:school-outline",
-  armed: "mdi:school",
-  alerting: "mdi:bell-ring"
+const STATE_ICONS: Record<string, IconName> = {
+  disarmed: "bellOff",
+  armed: "school",
+  alerting: "bellRing"
 };
+
+/** JavaScript Date.getDay() index to the integration's weekday keys. */
+const JS_DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 @customElement("lovelace-time-for-school-card")
 export class TimeForSchoolCard extends LitElement {
@@ -142,6 +148,25 @@ export class TimeForSchoolCard extends LitElement {
     return diffMin >= 0 ? `${this._t("in")} ${span}` : `${span} ${this._t("ago")}`;
   }
 
+  /** Locale-aware clock for an "HH:MM" schedule time; keeps the raw value if malformed. */
+  private _fmtClock(value: string): string {
+    const [h, m] = value.split(":").map(Number);
+    if (!Number.isInteger(h) || !Number.isInteger(m)) return value;
+    const d = new Date(2024, 0, 1, h, m);
+    return d.toLocaleTimeString(this._lang(), { hour: "2-digit", minute: "2-digit" });
+  }
+
+  private _shortDay(index: number): string {
+    // 1 January 2024 was a Monday.
+    return new Date(2024, 0, 1 + index).toLocaleDateString(this._lang(), { weekday: "short" });
+  }
+
+  private _dayKey(value: string | null | undefined): string | null {
+    if (!value) return null;
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : JS_DAY_KEYS[d.getDay()];
+  }
+
   private _normalizeTime(value: unknown): string {
     if (!value) return "07:45";
     const s = String(value);
@@ -169,8 +194,12 @@ export class TimeForSchoolCard extends LitElement {
     }
   }
 
-  private _set(partial: Record<string, unknown>) {
-    return this._call("set_config", partial, "set_config");
+  private _set(partial: Record<string, unknown>, label = "set_config") {
+    return this._call("set_config", partial, label);
+  }
+
+  private _name(entityId: string): string {
+    return this.hass?.states?.[entityId]?.attributes?.friendly_name || entityId;
   }
 
   private _setDay(day: string, partial: Record<string, unknown>) {
@@ -204,8 +233,8 @@ export class TimeForSchoolCard extends LitElement {
       return html`
         <ha-card>
           <div class="error">
-            <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
-            ${this._t("Entity not found")}: ${this._config?.entity || this._t("(not set)")}
+            ${icon("alert")}
+            <span>${this._t("Entity not found")}: ${this._config?.entity || this._t("(not set)")}</span>
           </div>
         </ha-card>
       `;
@@ -214,6 +243,8 @@ export class TimeForSchoolCard extends LitElement {
     const a = stateObj.attributes;
     const st = stateObj.state;
     const alerting = st === "alerting";
+    // Actions stay off while the entity reports no data.
+    const available = st !== "unavailable" && st !== "unknown";
     const enabled = Boolean(a.enabled);
     const skipNext = Boolean(a.skip_next);
     const schedule: Record<string, DaySchedule> = a.schedule ?? {};
@@ -225,74 +256,33 @@ export class TimeForSchoolCard extends LitElement {
     const offEntities: string[] = Array.isArray(a.off_entities) ? a.off_entities : [];
     const blinkLights: string[] = Array.isArray(a.blink_lights) ? a.blink_lights : [];
     const title = this._config.name || a.friendly_name || this._t("Time for school");
-    const icon = STATE_ICONS[st] ?? "mdi:school";
+    const statusLabel = STATE_LABELS[st] ? this._t(STATE_LABELS[st]) : st;
 
     return html`
-      <ha-card class=${classMap({ [`is-${st}`]: true })}>
+      <ha-card class=${classMap({ [`is-${st}`]: true, skipping: skipNext })}>
         <div class="header">
-          <div class="header-main">
-            <div class="icon-wrap"><ha-icon icon=${icon}></ha-icon></div>
-            <div class="header-text">
-              <div class="title">${title}</div>
-              <div class="subtitle">${this._renderSubtitle(st, nextFire, runStarted)}</div>
-            </div>
-          </div>
-          <div class="header-actions">
-            <div class="pill"><span class="dot"></span>${STATE_LABELS[st] ? this._t(STATE_LABELS[st]) : st}</div>
-            <button class="icon-button" type="button" title=${this._t("Configure")} aria-label=${this._t("Configure")}
-              @click=${this._openSettings}>
-              <ha-icon icon="mdi:cog-outline"></ha-icon>
-            </button>
-          </div>
+          <div class="title">${title}</div>
+          <button class="icon-button" type="button" title=${this._t("Configure")} aria-label=${this._t("Configure")}
+            aria-haspopup="dialog" @click=${this._openSettings}>${icon("cog")}</button>
         </div>
 
         ${alerting
-          ? html`
-              <div class="hero">
-                <div class="hero-text">
-                  <span class="hero-title">${this._t("Time for school!")}</span>
-                  <span class="hero-sub">
-                    ${this._t("Lights are blinking and screens are off · since")} ${this._fmtTime(runStarted)}
-                  </span>
-                </div>
-                <button
-                  class="stop"
-                  type="button"
-                  ?disabled=${this._busy === "stop"}
-                  @click=${() => this._call("stop")}
-                >
-                  <ha-icon icon="mdi:stop-circle-outline"></ha-icon>
-                  ${this._t("Stop")}
-                </button>
-              </div>
-            `
-          : nothing}
+          ? this._renderAlert(statusLabel, runStarted, offEntities, blinkLights)
+          : this._renderHero(st, statusLabel, nextFire)}
 
         <div class="settings">
           <div class="toggles">
-            <label class="toggle">
-              <span><ha-icon icon="mdi:power"></ha-icon>${this._t("Enabled")}</span>
-              <ha-switch
-                .checked=${enabled}
-                @change=${(e: Event) =>
-                  this._set({ enabled: (e.target as HTMLInputElement).checked })}
-              ></ha-switch>
-            </label>
-            <label class="toggle">
-              <span>
-                <ha-icon icon="mdi:debug-step-over"></ha-icon>${this._t("Skip next")}
-                ${skipNext && skippedFire
-                  ? html`<small>${this._fmtDay(skippedFire)} ${this._fmtTime(skippedFire)}</small>`
-                  : nothing}
-              </span>
-              <ha-switch
-                .checked=${skipNext}
-                ?disabled=${!enabled}
-                @change=${(e: Event) =>
-                  this._set({ skip_next: (e.target as HTMLInputElement).checked })}
-              ></ha-switch>
-            </label>
+            ${this._renderToggle("enabled", "power", this._t("Enabled"), enabled, !available)}
+            ${this._renderToggle(
+              "skip_next",
+              "skip",
+              this._t("Skip next"),
+              skipNext,
+              !available || !enabled,
+              skipNext && skippedFire ? `${this._fmtDay(skippedFire)} ${this._fmtTime(skippedFire)}` : ""
+            )}
           </div>
+          ${this._renderWeekStrip(schedule, enabled, alerting ? null : nextFire, skipNext ? skippedFire : null)}
         </div>
       </ha-card>
 
@@ -306,109 +296,208 @@ export class TimeForSchoolCard extends LitElement {
         <div class="dialog-header">
           <h2 id="settings-title">${title} ${this._t("settings")}</h2>
           <button class="icon-button" type="button" title=${this._t("Close settings")} aria-label=${this._t("Close settings")}
-            autofocus @click=${this._closeSettings}>
-            <ha-icon icon="mdi:close"></ha-icon>
-          </button>
+            autofocus @click=${this._closeSettings}>${icon("close")}</button>
         </div>
         <div class="settings">
-          <div class="week">
-            <span class="label"><ha-icon icon="mdi:calendar-week"></ha-icon>${this._t("Weekly schedule")}</span>
+          <section class="section week">
+            <span class="label">${icon("calendar", "i s")}${this._t("Weekly schedule")}</span>
             ${WEEKDAYS.map((day) => {
               const d = schedule[day] ?? { enabled: false, time: "07:45" };
+              const dayLabel = this._t(WEEKDAY_LABELS[day]);
+              const pending = this._busy === `day-${day}`;
               return html`
-                <div class=${classMap({ day: true, off: !d.enabled, dim: !enabled })}>
-                  <ha-switch
-                    aria-label=${`${this._t(WEEKDAY_LABELS[day])} ${this._t("Enabled")}`}
-                    .checked=${Boolean(d.enabled)}
-                    @change=${(e: Event) =>
-                      this._setDay(day, { enabled: (e.target as HTMLInputElement).checked })}
-                  ></ha-switch>
-                  <span class="day-name">${this._t(WEEKDAY_LABELS[day])}</span>
+                <div class=${classMap({ day: true, off: !d.enabled, dim: !enabled, pending })} data-day=${day}>
+                  <button
+                    class="day-toggle"
+                    type="button"
+                    role="switch"
+                    aria-checked=${d.enabled ? "true" : "false"}
+                    aria-label=${`${dayLabel} ${this._t("Enabled")}`}
+                    ?disabled=${pending || !available}
+                    @click=${() => this._setDay(day, { enabled: !d.enabled })}
+                  >${d.enabled ? icon("check", "i s") : nothing}</button>
+                  <span class="day-name">${dayLabel}</span>
                   <input
                     class="time-input"
                     type="time"
-                    aria-label=${`${this._t(WEEKDAY_LABELS[day])} ${this._t("Time")}`}
-                    .value=${this._normalizeTime(d.time)}
-                    ?disabled=${!d.enabled}
+                    aria-label=${`${dayLabel} ${this._t("Time")}`}
+                    .value=${live(this._normalizeTime(d.time))}
+                    ?disabled=${!d.enabled || pending || !available}
                     @change=${(e: Event) =>
                       this._setDay(day, { time: (e.target as HTMLInputElement).value })}
                   />
                 </div>
               `;
             })}
+          </section>
+
+          <div class="sliders">
+            ${this._renderSlider("bulb", this._t("Blink count"), "blink_count", blinkCount, 1, 20, 1, `${blinkCount}×`, !available)}
+            ${this._renderSlider("timer", this._t("Blink interval"), "blink_interval", blinkInterval, 0.2, 5, 0.1, `${blinkInterval.toLocaleString(this._lang(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`, !available)}
           </div>
 
-          ${this._renderSlider("mdi:lightbulb-on-outline", this._t("Blink count"), "blink_count", blinkCount, 1, 20, 1, `${blinkCount}×`)}
-          ${this._renderSlider("mdi:timer-outline", this._t("Blink interval"), "blink_interval", blinkInterval, 0.2, 5, 0.1, `${blinkInterval.toLocaleString(this._lang(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`)}
-
-          <div class="field chips-field">
-            <span class="label"><ha-icon icon="mdi:television-off"></ha-icon>${this._t("Turns off")}</span>
+          <section class="section">
+            <span class="label">${icon("screenOff", "i s")}${this._t("Turns off")}</span>
             ${this._renderTargets("off_entities", offEntities,
-              ["media_player", "switch", "light", "fan", "remote", "input_boolean"])}
-          </div>
-          <div class="field chips-field">
-            <span class="label"><ha-icon icon="mdi:lightbulb-group-outline"></ha-icon>${this._t("Blinks")}</span>
-            ${this._renderTargets("blink_lights", blinkLights, ["light"])}
-          </div>
+              ["media_player", "switch", "light", "fan", "remote", "input_boolean"], !available)}
+          </section>
+          <section class="section">
+            <span class="label">${icon("bulb", "i s")}${this._t("Blinks")}</span>
+            ${this._renderTargets("blink_lights", blinkLights, ["light"], !available)}
+          </section>
         </div>
 
         <div class="footer">
           <span class="footer-note">
             ${nextFire && !alerting
-              ? html`<ha-icon icon="mdi:bell-outline"></ha-icon>
+              ? html`${icon("bellRing", "i s")}
                   ${this._t("Next:")} ${this._fmtDay(nextFire)} ${this._fmtTime(nextFire)}`
               : enabled
                 ? alerting
                   ? nothing
-                  : html`<ha-icon icon="mdi:bell-off-outline"></ha-icon> ${this._t("No day enabled")}`
-                : html`<ha-icon icon="mdi:bell-off-outline"></ha-icon> ${this._t("Alert is off")}`}
+                  : html`${icon("bellOff", "i s")} ${this._t("No day enabled")}`
+                : html`${icon("bellOff", "i s")} ${this._t("Alert is off")}`}
           </span>
           <button
             class="text-button"
             type="button"
-            ?disabled=${this._busy === "trigger_now"}
+            ?disabled=${this._busy === "trigger_now" || !available}
             @click=${() => {
               this._closeSettings();
               return this._call("trigger_now");
             }}
-          >
-            <ha-icon icon="mdi:play-circle-outline"></ha-icon>
-            ${this._t("Test now")}
-          </button>
+          >${icon("play", "i s")}<span>${this._t("Test now")}</span></button>
         </div>
       </dialog>
     `;
   }
 
-  private _renderSubtitle(st: string, nextFire: string | null, runStarted: string | null) {
-    switch (st) {
-      case "armed":
-        return nextFire
-          ? `${this._fmtDay(nextFire)} ${this._fmtTime(nextFire)} · ${this._fmtRelative(nextFire)}`
-          : this._t("No upcoming alert");
-      case "alerting":
-        return `${this._t("Started")} ${this._fmtTime(runStarted)}`;
-      case "disarmed":
-        return this._t("Alert is off");
-      default:
-        return "";
+  private _renderHero(st: string, statusLabel: string, nextFire: string | null) {
+    let headline: string;
+    let context = "";
+    let kind: "time" | "words" | "none" = "words";
+    if (st === "armed" && nextFire) {
+      headline = this._fmtTime(nextFire);
+      context = `${this._fmtDay(nextFire)} · ${this._fmtRelative(nextFire)}`;
+      kind = "time";
+    } else if (st === "armed") {
+      headline = this._t("No upcoming alert");
+    } else if (st === "disarmed") {
+      headline = this._t("Alert is off");
+    } else {
+      headline = "--:--";
+      kind = "none";
     }
+    return html`
+      <div class="hero">
+        <div class="circ big">${icon(STATE_ICONS[st] ?? "alert")}</div>
+        <div class="hero-text">
+          <div class="status">${statusLabel}</div>
+          <div class=${classMap({ current: true, words: kind === "words", none: kind === "none" })}>${headline}</div>
+          ${context ? html`<div class="context">${context}</div>` : nothing}
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderAlert(statusLabel: string, runStarted: string | null, offEntities: string[], blinkLights: string[]) {
+    const line = (iconName: IconName, label: string, ids: string[]) =>
+      ids.length
+        ? html`<div class="target-line">
+            <span class="target-label">${icon(iconName, "i s")}${label}</span>
+            ${ids.map((id) => html`<span class="chip">${this._name(id)}</span>`)}
+          </div>`
+        : nothing;
+    return html`
+      <div class="alert">
+        <div class="alert-head">
+          <div class="circ big">${icon("bellRing")}</div>
+          <div class="hero-text">
+            <div class="status">${statusLabel}</div>
+            <span class="hero-title">${this._t("Time for school!")}</span>
+            <span class="hero-sub">${this._t("Lights are blinking and screens are off · since")} ${this._fmtTime(runStarted)}</span>
+          </div>
+        </div>
+        ${blinkLights.length || offEntities.length
+          ? html`<div class="targets">
+              ${line("bulb", this._t("Blinks"), blinkLights)}
+              ${line("screenOff", this._t("Turns off"), offEntities)}
+            </div>`
+          : nothing}
+        <button class="stop" type="button" ?disabled=${this._busy === "stop"} @click=${() => this._call("stop")}
+          >${icon("stop")}<span>${this._t("Stop")}</span></button>
+      </div>
+    `;
+  }
+
+  private _renderToggle(
+    key: "enabled" | "skip_next",
+    iconName: IconName,
+    label: string,
+    checked: boolean,
+    disabled: boolean,
+    detail = ""
+  ) {
+    const busyLabel = `toggle-${key}`;
+    const pending = this._busy === busyLabel;
+    return html`
+      <button
+        class=${classMap({ pill: true, skip: key === "skip_next", on: checked, pending })}
+        type="button"
+        role="switch"
+        aria-checked=${checked ? "true" : "false"}
+        aria-busy=${pending ? "true" : "false"}
+        data-toggle=${key}
+        ?disabled=${disabled || pending}
+        @click=${() => this._set({ [key]: !checked }, busyLabel)}
+      >${icon(iconName)}<span class="pill-text"><span>${label}</span>${detail ? html`<small>${detail}</small>` : nothing}</span></button>
+    `;
+  }
+
+  private _renderWeekStrip(
+    schedule: Record<string, DaySchedule>,
+    enabled: boolean,
+    nextFire: string | null,
+    skippedFire: string | null
+  ) {
+    const nextKey = this._dayKey(nextFire);
+    const skipKey = this._dayKey(skippedFire);
+    const todayKey = JS_DAY_KEYS[new Date().getDay()];
+    return html`
+      <ul class=${classMap({ "week-strip": true, dim: !enabled })} aria-label=${this._t("This week")}>
+        ${WEEKDAYS.map((day, index) => {
+          const d = schedule[day];
+          const on = Boolean(d?.enabled);
+          return html`
+            <li class=${classMap({ wd: true, off: !on, today: day === todayKey, next: on && day === nextKey, skipped: on && day === skipKey })}
+              data-day=${day}>
+              <span class="wd-name" aria-hidden="true">${this._shortDay(index)}</span>
+              <span class="sr-only">${this._t(WEEKDAY_LABELS[day])}</span>
+              <span class="wd-time">${on
+                ? this._fmtClock(this._normalizeTime(d.time))
+                : html`<span aria-hidden="true">–</span><span class="sr-only">${this._t("Off")}</span>`}</span>
+            </li>
+          `;
+        })}
+      </ul>
+    `;
   }
 
   private _renderSlider(
-    icon: string,
+    iconName: IconName,
     label: string,
     key: string,
     value: number,
     min: number,
     max: number,
     step: number,
-    display: string
+    display: string,
+    disabled: boolean
   ) {
     return html`
       <div class="field slider-field">
         <span class="label">
-          <ha-icon icon=${icon}></ha-icon>${label}
+          ${icon(iconName, "i s")}${label}
           <span class="value">${display}</span>
         </span>
         <ha-slider
@@ -416,6 +505,7 @@ export class TimeForSchoolCard extends LitElement {
           max=${max}
           step=${step}
           .value=${value}
+          .disabled=${disabled}
           @input=${(e: Event) => this._sliderInput(key, e)}
           @change=${(e: Event) => this._sliderChange(key, e)}
         ></ha-slider>
@@ -423,14 +513,14 @@ export class TimeForSchoolCard extends LitElement {
     `;
   }
 
-  private _renderTargets(key: string, value: string[], domains: string[]) {
+  private _renderTargets(key: string, value: string[], domains: string[], disabled: boolean) {
     return html`
       <ha-selector
         .hass=${this.hass}
         .selector=${{ entity: { multiple: true, domain: domains } }}
         .value=${value}
         .label=${key === "off_entities" ? this._t("Turns off") : this._t("Blinks")}
-        .disabled=${this._busy !== null}
+        .disabled=${this._busy !== null || disabled}
         @value-changed=${(ev: CustomEvent) => {
           ev.stopPropagation();
           const selected = ev.detail.value ?? [];
@@ -442,351 +532,7 @@ export class TimeForSchoolCard extends LitElement {
     `;
   }
 
-  static styles = css`
-    :host {
-      --tfs-accent: var(--primary-color, #03a9f4);
-      --tfs-accent-text: var(--text-primary-color, #fff);
-      --tfs-danger: var(--error-color, #db4437);
-      --tfs-warn: var(--warning-color, #ff9800);
-      --tfs-muted: var(--secondary-text-color, #727272);
-      --tfs-surface: var(--secondary-background-color, rgba(127, 127, 127, 0.08));
-      --tfs-radius: var(--ha-card-border-radius, 12px);
-      --tfs-ring-color: var(--tfs-accent);
-    }
-    ha-card {
-      padding: 16px;
-      box-sizing: border-box;
-      overflow: hidden;
-    }
-    ha-card.is-alerting { --tfs-ring-color: var(--tfs-warn); }
-    ha-card.is-disarmed { --tfs-ring-color: var(--tfs-muted); }
-
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-    }
-    .header-main {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      min-width: 0;
-    }
-    .header-actions { display: flex; align-items: center; gap: 4px; flex: none; }
-    .icon-button {
-      display: inline-grid;
-      place-items: center;
-      width: 40px;
-      height: 40px;
-      padding: 0;
-      border: none;
-      border-radius: 50%;
-      background: transparent;
-      color: var(--tfs-muted);
-      cursor: pointer;
-      flex: none;
-    }
-    .icon-button:hover { background: var(--tfs-surface); }
-    button:focus-visible { outline: 2px solid var(--tfs-accent); outline-offset: 2px; }
-    dialog {
-      box-sizing: border-box;
-      width: min(520px, calc(100vw - 32px));
-      max-height: calc(100dvh - 32px);
-      padding: 20px;
-      border: 1px solid var(--divider-color, #ddd);
-      border-radius: var(--tfs-radius);
-      background: var(--card-background-color, #fff);
-      color: var(--primary-text-color, #212121);
-      box-shadow: 0 12px 40px #0004;
-      overflow: auto;
-    }
-    dialog::backdrop { background: #0007; }
-    .dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .dialog-header h2 { margin: 0; font-size: 1.1rem; font-weight: 600; overflow-wrap: anywhere; }
-    .icon-wrap {
-      width: 42px;
-      height: 42px;
-      border-radius: 50%;
-      display: grid;
-      place-items: center;
-      flex: none;
-      background: color-mix(in srgb, var(--tfs-ring-color) 16%, transparent);
-      color: var(--tfs-ring-color);
-      transition: background 300ms, color 300ms;
-    }
-    .icon-wrap ha-icon { --mdc-icon-size: 24px; }
-    .is-alerting .icon-wrap { animation: tfs-pulse 1.2s ease-in-out infinite; }
-    .header-text { min-width: 0; }
-    .title {
-      font-size: 1.1rem;
-      font-weight: 600;
-      line-height: 1.25;
-      overflow-wrap: anywhere;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .subtitle {
-      font-size: 0.82rem;
-      color: var(--tfs-muted);
-      margin-top: 2px;
-    }
-    .pill {
-      flex: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      letter-spacing: 0.02em;
-      padding: 4px 10px;
-      border-radius: 999px;
-      color: var(--tfs-ring-color);
-      background: color-mix(in srgb, var(--tfs-ring-color) 14%, transparent);
-    }
-    .dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: currentColor;
-    }
-    .is-alerting .dot { animation: tfs-blink 0.8s steps(2, start) infinite; }
-
-    .hero {
-      margin-top: 16px;
-      padding: 16px;
-      border-radius: var(--tfs-radius);
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      color: var(--tfs-ring-color);
-      background: linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--tfs-ring-color) 22%, transparent),
-        color-mix(in srgb, var(--tfs-ring-color) 6%, transparent)
-      );
-      border: 1px solid color-mix(in srgb, var(--tfs-ring-color) 30%, transparent);
-    }
-    .hero-text { display: flex; flex-direction: column; gap: 2px; }
-    .hero-title { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; }
-    .hero-sub { font-size: 0.85rem; color: var(--primary-text-color); opacity: 0.85; }
-    .stop {
-      width: 100%;
-      padding: 16px;
-      border: none;
-      border-radius: calc(var(--tfs-radius) - 2px);
-      background: var(--tfs-danger);
-      color: #fff;
-      font-size: 1.1rem;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      display: inline-flex;
-      justify-content: center;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-      box-shadow: 0 6px 18px color-mix(in srgb, var(--tfs-danger) 35%, transparent);
-      transition: transform 120ms ease, filter 120ms ease;
-    }
-    .stop ha-icon { --mdc-icon-size: 26px; }
-    .stop:hover { filter: brightness(1.05); }
-    .stop:active { transform: scale(0.985); }
-    button:disabled { opacity: 0.6; cursor: progress; }
-
-    .settings {
-      margin-top: 16px;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px 20px;
-    }
-    .toggles {
-      grid-column: 1 / -1;
-      display: flex;
-      flex-direction: column;
-      border-radius: calc(var(--tfs-radius) - 4px);
-      background: var(--tfs-surface);
-      overflow: hidden;
-    }
-    .toggle {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 12px;
-      font-size: 0.9rem;
-      cursor: pointer;
-    }
-    .toggle + .toggle {
-      border-top: 1px solid color-mix(in srgb, var(--tfs-muted) 18%, transparent);
-    }
-    .toggle > span {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      min-width: 0;
-      white-space: nowrap;
-    }
-    .toggle ha-icon { --mdc-icon-size: 20px; color: var(--tfs-muted); }
-    .toggle small {
-      font-size: 0.72rem;
-      color: var(--tfs-muted);
-      padding: 1px 6px;
-      border-radius: 999px;
-      background: color-mix(in srgb, var(--tfs-muted) 14%, transparent);
-    }
-
-    .week {
-      grid-column: 1 / -1;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .week .label { margin-bottom: 4px; }
-    .day {
-      display: grid;
-      grid-template-columns: auto 1fr auto;
-      align-items: center;
-      gap: 12px;
-      padding: 6px 10px;
-      border-radius: 8px;
-      background: var(--tfs-surface);
-      transition: opacity 150ms;
-    }
-    .day.off .day-name { color: var(--tfs-muted); }
-    .day.off .time-input { opacity: 0.45; }
-    .day.dim { opacity: 0.6; }
-    .day-name { font-size: 0.92rem; font-weight: 500; }
-    .day .time-input {
-      width: auto;
-      padding: 4px 8px;
-      font-size: 1rem;
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-    .label {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.8rem;
-      font-weight: 500;
-      color: var(--tfs-muted);
-    }
-    .label ha-icon { --mdc-icon-size: 18px; }
-    .label .value {
-      margin-left: auto;
-      color: var(--primary-text-color);
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
-    }
-    .value.muted { color: var(--tfs-muted); font-weight: 400; font-size: 0.85rem; }
-    .time-input {
-      box-sizing: border-box;
-      font-family: inherit;
-      border-radius: 8px;
-      border: 1px solid var(--divider-color, rgba(127,127,127,0.3));
-      background: var(--card-background-color, #fff);
-      color: var(--primary-text-color);
-    }
-    .slider-field ha-slider { width: 100%; margin: 0 -4px; }
-    .chips-field { grid-column: 1 / -1; }
-    ha-selector { display: block; min-width: 0; }
-
-    .footer {
-      margin-top: 14px;
-      padding-top: 10px;
-      border-top: 1px solid var(--divider-color, rgba(127,127,127,0.2));
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.82rem;
-      color: var(--tfs-muted);
-    }
-    .footer-note { display: inline-flex; align-items: center; gap: 6px; }
-    .footer ha-icon { --mdc-icon-size: 18px; }
-    .text-button {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      border: none;
-      background: transparent;
-      color: var(--tfs-accent);
-      font-size: 0.82rem;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .text-button:hover { background: color-mix(in srgb, var(--tfs-accent) 10%, transparent); }
-    .error { display: flex; align-items: center; gap: 8px; color: var(--tfs-danger); }
-
-    @keyframes tfs-pulse {
-      0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tfs-ring-color) 45%, transparent); }
-      50% { box-shadow: 0 0 0 10px color-mix(in srgb, var(--tfs-ring-color) 0%, transparent); }
-    }
-    @keyframes tfs-blink { to { opacity: 0.25; } }
-
-    :host([data-appearance="bubble"]) {
-      --tfs-accent: var(--bubble-accent-color, var(--primary-color, #03a9f4));
-      --tfs-surface: var(--bubble-secondary-background-color, var(--card-background-color, #fff));
-      --tfs-radius: var(--bubble-border-radius, 28px);
-      --mdc-theme-primary: var(--tfs-accent);
-      --switch-checked-color: var(--tfs-accent);
-    }
-    :host([data-appearance="bubble"]) ha-card,
-    :host([data-appearance="bubble"]) dialog {
-      background: var(--bubble-main-background-color, var(--secondary-background-color, #f2f3f5));
-      border: var(--bubble-border, none);
-      border-radius: var(--tfs-radius);
-      box-shadow: var(--bubble-box-shadow, none);
-    }
-    :host([data-appearance="bubble"]) .header { gap: 8px; }
-    :host([data-appearance="bubble"]) .title { font-size: 1rem; }
-    :host([data-appearance="bubble"]) .icon-wrap {
-      border-radius: var(--bubble-icon-border-radius, 50%);
-      background: var(--bubble-icon-background-color, var(--tfs-surface));
-    }
-    :host([data-appearance="bubble"]) .icon-button,
-    :host([data-appearance="bubble"]) .text-button {
-      border-radius: var(--bubble-sub-button-border-radius, 20px);
-      background: var(--bubble-sub-button-background-color, var(--tfs-surface));
-    }
-    :host([data-appearance="bubble"]) .icon-button:hover,
-    :host([data-appearance="bubble"]) .text-button:hover { filter: brightness(0.95); }
-    :host([data-appearance="bubble"]) .toggles {
-      border-radius: var(--bubble-sub-button-border-radius, 20px);
-    }
-    :host([data-appearance="bubble"]) .toggle { padding: 12px; }
-    :host([data-appearance="bubble"]) .pill { letter-spacing: 0; }
-    :host([data-appearance="bubble"]) .time-input,
-    :host([data-appearance="bubble"]) select {
-      background: var(--tfs-surface);
-      border-radius: var(--bubble-sub-button-border-radius, 20px);
-    }
-    :host([data-appearance="bubble"]) .day,
-    :host([data-appearance="bubble"]) .preset {
-      border-radius: var(--bubble-sub-button-border-radius, 20px);
-    }
-    :host([data-appearance="bubble"]) .hero {
-      border-radius: var(--bubble-sub-button-border-radius, 20px);
-      background: color-mix(in srgb, var(--tfs-ring-color) 12%, var(--tfs-surface));
-    }
-    :host([data-appearance="bubble"]) .stop {
-      border-radius: var(--bubble-sub-button-border-radius, 24px);
-    }
-
-    @media (max-width: 480px) {
-      .settings { grid-template-columns: 1fr; }
-      dialog { padding: 16px; }
-      .day { gap: 8px; }
-      .header { gap: 6px; }
-      .header-main { gap: 8px; }
-      .toggle > span { white-space: normal; flex-wrap: wrap; }
-    }
-  `;
+  static styles = styles;
 }
 
 declare global {

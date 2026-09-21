@@ -6,20 +6,42 @@ A dashboard card for the
 [Time for School](https://github.com/mvheimburg/time-for-school)
 integration.
 
-![The card armed and alerting](images/screenshot.png)
+![The card armed and alerting, Bubble appearance in a dark theme](images/bubble-night.png)
 
-- Compact main card with status, next alert, master enabled switch and skip-next.
-- Gear button opens settings with the weekly schedule, blink count and interval,
-  editable device selections, and **Test now**. Changes apply immediately.
+The everyday card shows only what the household needs in the morning:
+
+- **Status hero** with the next alert time as the headline, the day and how long
+  until it fires. The icon and status line are tinted by state: green when
+  armed, amber when *Skip next* is on, grey when off or unavailable.
+- **Time to go** takeover while the alert runs: an amber panel (a reminder, not
+  an emergency) listing the lights that blink and the devices that were turned
+  off, with a big white **Stop** button.
+- **Enabled** and **Skip next** as two pill switches. Skip next shows which
+  alert it skips.
+- **This week** strip with each weekday's time; the next alert's day is
+  highlighted, today is outlined and a skipped day is struck through.
+- The round **Configure** cog (top right) opens the settings that are not needed
+  every day, in a modal: the weekly schedule (turn each weekday on or off and
+  set its time), blink count and interval, the devices that are turned off and
+  the lights that blink, and **Test now**. Changes apply immediately through the
+  integration's services; close with the close button, Escape or a click
+  outside.
 - Device selections persist in the integration options. Changing devices during
   an alert stops it and restores the lights before applying the new selection.
-- Close settings with the close button, Escape, or a click outside the modal.
-- Big **Stop** button on the main card while the alert is running.
-- Failed service calls show a Home Assistant toast.
+- Actions show as pending until Home Assistant answers, cannot be sent twice,
+  and are disabled while the entity is unavailable. Failed service calls show a
+  Home Assistant toast and the card keeps showing Home Assistant's value.
 
-On a phone the card stacks into a single column:
+Default appearance in a light theme, and the Configure modal:
 
-<img src="images/alerting-phone.png" alt="The card alerting at phone width" width="320">
+![The card armed and alerting, default appearance in a light theme](images/light.png)
+
+<img src="images/configure.png" alt="The Configure modal with the weekly schedule, blink settings and devices" width="420">
+<img src="images/phone.png" alt="The card alerting at phone width" width="300">
+
+Since 0.3.0 the card follows the same visual language as the House State,
+Water Guard and Access Control cards. It adds the week strip on the card;
+services, settings and the card configuration are unchanged.
 
 ## Install
 
@@ -48,18 +70,20 @@ The Bubble preset styles both the compact card and its settings modal; it does
 not require Bubble Card to be installed.
 
 The preset inherits these shared CSS variables from your Home Assistant theme:
-`--bubble-main-background-color`, `--bubble-secondary-background-color`,
-`--bubble-accent-color`, `--bubble-border-radius`, `--bubble-icon-border-radius`,
-`--bubble-icon-background-color`, `--bubble-sub-button-border-radius`,
-`--bubble-sub-button-background-color`, `--bubble-border`, and
-`--bubble-box-shadow`. Without overrides it uses the current HA theme colors
-and rounded Bubble-style defaults. Alarm warning and stop colors stay distinct.
+`--bubble-main-background-color` (card and modal), `--bubble-secondary-background-color`
+(hero, pills and rows), `--bubble-border-radius`, `--bubble-sub-button-border-radius`,
+`--bubble-icon-border-radius`, `--bubble-border` and `--bubble-box-shadow`.
+Status colours come from the Home Assistant theme (`--success-color`,
+`--warning-color`, `--orange-color`, `--disabled-text-color`), so the time to go
+panel stays amber whatever the Bubble accent. Since 0.3.0 the card no longer
+reads `--bubble-accent-color`, `--bubble-icon-background-color` or
+`--bubble-sub-button-background-color`.
 
 For example, in an HA theme (theme keys omit the leading `--`):
 
 ```yaml
 bubble-border-radius: 28px
-bubble-accent-color: "#009688"
+bubble-secondary-background-color: "#22252a"
 ```
 
 CSS applied locally inside another Bubble Card does not carry over. This is
@@ -72,6 +96,8 @@ npm ci
 npm run lint
 npm run typecheck
 npm run build      # writes dist/lovelace-time-for-school.js
+npm test           # browser tests (Vitest + Playwright)
+node scripts/screenshot.cjs   # regenerates images/ from simulated data
 ```
 
 CI checks that `dist/` is committed up to date. Releases are automatic: bump
