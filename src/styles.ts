@@ -470,6 +470,23 @@ export const styles = css`
     font-weight: 700;
     overflow-wrap: anywhere;
   }
+  .day-name small {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--tfs-muted);
+  }
+  .default-time .day-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-left: 8px;
+  }
+  .day .reset {
+    flex: 0 0 auto;
+    padding: 0 12px;
+    font-size: 13px;
+  }
   .day.off .day-name {
     color: var(--tfs-muted);
     font-weight: 600;

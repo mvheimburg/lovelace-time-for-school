@@ -18,7 +18,7 @@ function states(variant) {
   const schedule = {
     mon: { enabled: true, time: "07:45" },
     tue: { enabled: true, time: "07:45" },
-    wed: { enabled: true, time: "08:10" },
+    wed: { enabled: true, time: "08:10", custom: true },
     thu: { enabled: true, time: "07:45" },
     fri: { enabled: true, time: "07:45" },
     sat: { enabled: false, time: "07:45" },
@@ -30,6 +30,7 @@ function states(variant) {
     friendly_name: "Skolevarsel",
     enabled: true,
     skip_next: false,
+    time_of_day: "07:45",
     schedule,
     blink_count: 5,
     blink_interval: 1,

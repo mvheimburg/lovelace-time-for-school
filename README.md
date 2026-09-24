@@ -21,11 +21,18 @@ The everyday card shows only what the household needs in the morning:
 - **This week** strip with each weekday's time; the next alert's day is
   highlighted, today is outlined and a skipped day is struck through.
 - The round **Configure** cog (top right) opens the settings that are not needed
-  every day, in a modal: the weekly schedule (turn each weekday on or off and
-  set its time), blink count and interval, the devices that are turned off and
-  the lights that blink, and **Test now**. Changes apply immediately through the
-  integration's services; close with the close button, Escape or a click
-  outside.
+  every day, in a modal: the **default time** and the weekly schedule, blink
+  count and interval, the devices that are turned off and the lights that blink,
+  and **Test now**. Changes apply immediately through the integration's
+  services; close with the close button, Escape or a click outside.
+- **Default time** (0.5.0, with Time for School integration 0.4.0 or later), as
+  on the Personal Wakeup card: every school day follows it. Turn each weekday on
+  or off; change a day's time to give it its own (marked *Own time*), and
+  **Reset** puts it back on the default. With an older integration each day
+  keeps its own time as before.
+- A time is sent when you finish editing it (leave the field or press Enter),
+  or at once when a time picker sets it; typing the hour no longer sends a
+  half-typed time. After a refusal the field shows the saved time again.
 - Device selections persist in the integration options. Changing devices during
   an alert stops it and restores the lights before applying the new selection.
 - Actions show as pending until Home Assistant answers, cannot be sent twice,

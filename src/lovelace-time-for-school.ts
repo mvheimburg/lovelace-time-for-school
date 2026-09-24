@@ -32,7 +32,10 @@ interface TimeForSchoolCardConfig {
 
 interface DaySchedule {
   enabled: boolean;
+  /** The time the day's alert fires: its own, or the default time. */
   time: string;
+  /** Whether the time is the day's own rather than the default (integration 0.4.0). */
+  custom?: boolean;
 }
 
 const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
@@ -69,6 +72,9 @@ export class TimeForSchoolCard extends LitElement {
   @state() private _config!: TimeForSchoolCardConfig;
   @state() private _draft: Record<string, number> = {};
   @state() private _busy: string | null = null;
+  /** Time inputs being edited: sent when editing ends, not on every keystroke. */
+  @state() private _timeDrafts: Record<string, string> = {};
+  private _committing: Record<string, string> = {};
   private _tick?: number;
 
   private _t(key: TranslationKey): string { return localize(this.hass, key); }
@@ -210,6 +216,68 @@ export class TimeForSchoolCard extends LitElement {
     return this._call("set_day", { day, ...partial }, `day-${day}`);
   }
 
+  /**
+   * Send a time once editing ends: when the input loses focus (or Enter), or at
+   * once when a picker changed it without focus. A browser reports a change as
+   * soon as the typed value is complete, e.g. after the hour, which is too early.
+   * Until the house answers, the input keeps what was entered; after a refusal it
+   * shows the authoritative time again.
+   */
+  private async _commitTime(
+    key: string,
+    current: string,
+    commit: (value: string) => Promise<unknown>
+  ): Promise<void> {
+    const next = this._timeDrafts[key]?.slice(0, 5);
+    if (next === undefined || this._committing[key] === next) return;
+    const drop = () => {
+      const drafts = { ...this._timeDrafts };
+      delete drafts[key];
+      this._timeDrafts = drafts;
+      delete this._committing[key];
+    };
+    if (!/^\d\d:\d\d$/.test(next) || next === current) {
+      drop();
+      return;
+    }
+    this._committing[key] = next;
+    try {
+      await commit(next);
+    } finally {
+      drop();
+    }
+  }
+
+  private _timeInput(
+    key: string,
+    current: string,
+    label: string,
+    disabled: boolean,
+    commit: (value: string) => Promise<unknown>
+  ) {
+    const draft = (e: Event) => {
+      this._timeDrafts = { ...this._timeDrafts, [key]: (e.target as HTMLInputElement).value };
+    };
+    return html`<input
+      class="time-input"
+      type="time"
+      data-time=${key}
+      aria-label=${label}
+      aria-busy=${key in this._committing ? "true" : "false"}
+      .value=${live(this._timeDrafts[key] ?? current)}
+      ?disabled=${disabled}
+      @input=${draft}
+      @change=${(e: Event) => {
+        draft(e);
+        if (this.shadowRoot?.activeElement !== e.target) void this._commitTime(key, current, commit);
+      }}
+      @blur=${() => void this._commitTime(key, current, commit)}
+      @keydown=${(e: KeyboardEvent) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+    />`;
+  }
+
   private _openSettings(): void {
     this.renderRoot.querySelector<HTMLDialogElement>("dialog")?.showModal();
   }
@@ -261,6 +329,9 @@ export class TimeForSchoolCard extends LitElement {
     const blinkLights: string[] = Array.isArray(a.blink_lights) ? a.blink_lights : [];
     const title = this._config.name || a.friendly_name || this._t("Time for school");
     const statusLabel = STATE_LABELS[st] ? this._t(STATE_LABELS[st]) : st;
+    // Integration 0.4.0: one default time that days follow unless they have their own.
+    const hasDefault = typeof a.time_of_day === "string";
+    const defaultTime = this._normalizeTime(a.time_of_day);
 
     return html`
       <ha-card class=${classMap({ [`is-${st}`]: true, skipping: skipNext })}>
@@ -303,14 +374,22 @@ export class TimeForSchoolCard extends LitElement {
             autofocus @click=${this._closeSettings}>${icon("close")}</button>
         </div>
         <div class="settings">
+          ${hasDefault
+            ? html`<div class="day default-time">
+                <span class="day-name">${icon("clock", "i s")}${this._t("Default time")}</span>
+                ${this._timeInput("default", defaultTime, this._t("Default time"), !available, (time) =>
+                  this._set({ time_of_day: time }, "time_of_day"))}
+              </div>`
+            : nothing}
           <section class="section week">
             <span class="label">${icon("calendar", "i s")}${this._t("Weekly schedule")}</span>
             ${WEEKDAYS.map((day) => {
-              const d = schedule[day] ?? { enabled: false, time: "07:45" };
+              const d = schedule[day] ?? { enabled: false, time: defaultTime };
               const dayLabel = this._t(WEEKDAY_LABELS[day]);
               const pending = this._busy === `day-${day}`;
+              const own = hasDefault && Boolean(d.custom);
               return html`
-                <div class=${classMap({ day: true, off: !d.enabled, dim: !enabled, pending })} data-day=${day}>
+                <div class=${classMap({ day: true, off: !d.enabled, dim: !enabled, pending, own })} data-day=${day}>
                   <button
                     class="day-toggle"
                     type="button"
@@ -320,16 +399,25 @@ export class TimeForSchoolCard extends LitElement {
                     ?disabled=${pending || !available}
                     @click=${() => this._setDay(day, { enabled: !d.enabled })}
                   >${d.enabled ? icon("check", "i s") : nothing}</button>
-                  <span class="day-name">${dayLabel}</span>
-                  <input
-                    class="time-input"
-                    type="time"
-                    aria-label=${`${dayLabel} ${this._t("Time")}`}
-                    .value=${live(this._normalizeTime(d.time))}
-                    ?disabled=${!d.enabled || pending || !available}
-                    @change=${(e: Event) =>
-                      this._setDay(day, { time: (e.target as HTMLInputElement).value })}
-                  />
+                  <span class="day-name">${dayLabel}${own ? html`<small>${this._t("Own time")}</small>` : nothing}</span>
+                  ${own
+                    ? html`<button
+                        class="text-button reset"
+                        type="button"
+                        data-use-default=${day}
+                        aria-label=${`${this._t("Use default time for")} ${dayLabel}`}
+                        title=${`${this._t("Use default time for")} ${dayLabel}`}
+                        ?disabled=${pending || !available}
+                        @click=${() => this._setDay(day, { use_default: true })}
+                      >${this._t("Reset")}</button>`
+                    : nothing}
+                  ${this._timeInput(
+                    `day-${day}`,
+                    this._normalizeTime(d.time),
+                    `${dayLabel} ${this._t("Time")}`,
+                    !d.enabled || !available,
+                    (time) => this._setDay(day, { time })
+                  )}
                 </div>
               `;
             })}

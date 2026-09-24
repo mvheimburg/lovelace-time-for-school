@@ -69,6 +69,10 @@ const en = {
   "Time to go!": "Time to go!",
   Unavailable: "Unavailable",
   Unknown: "Unknown",
+  "Default time": "Default time",
+  "Own time": "Own time",
+  Reset: "Reset",
+  "Use default time for": "Use default time for",
 } as const;
 export type TranslationKey = keyof typeof en;
 const nb: Record<TranslationKey, string> = {
@@ -121,6 +125,10 @@ const nb: Record<TranslationKey, string> = {
   "Time to go!": "På tide å gå!",
   Unavailable: "Utilgjengelig",
   Unknown: "Ukjent",
+  "Default time": "Standardtid",
+  "Own time": "Egen tid",
+  Reset: "Tilbakestill",
+  "Use default time for": "Bruk standardtid for",
 };
 export function localize(
   hass: LanguageSource | undefined,
